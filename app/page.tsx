@@ -483,6 +483,62 @@ const DEFAULTS: SimulationParams = {
 
 // ─────────────────────────────────────────────────────────────
 // UI PRIMITIVES
+// ─── Comunas RM ───────────────────────────────────────────────
+const COMUNAS_RM: Record<string, string> = {
+  'Alhué': '#f22424',
+  'Buin': '#3960bf',
+  'Calera de Tango': '#64a508',
+  'Cerrillos': '#f224d8',
+  'Cerro Navia': '#39bfa8',
+  'Colina': '#a55d08',
+  'Conchalí': '#5724f2',
+  'Curacaví': '#3fbf39',
+  'El Bosque': '#a5083c',
+  'El Monte': '#24a5f2',
+  'Estación Central': '#b4bf39',
+  'Huechuraba': '#8408a5',
+  'Independencia': '#24f28a',
+  'Isla de Maipo': '#bf5539',
+  'La Cisterna': '#0815a5',
+  'La Florida': '#71f224',
+  'La Granja': '#bf3992',
+  'La Pintana': '#089fa5',
+  'La Reina': '#f2be24',
+  'Lampa': '#7639bf',
+  'Las Condes': '#08a522',
+  'Lo Barnechea': '#f2243e',
+  'Lo Espejo': '#3971bf',
+  'Lo Prado': '#78a508',
+  'Macul': '#f124f2',
+  'Maipú': '#39bf97',
+  'María Pinto': '#a54908',
+  'Melipilla': '#3d24f2',
+  'Ñuñoa': '#50bf39',
+  'Padre Hurtado': '#a50851',
+  'Paine': '#24bff2',
+  'Pedro Aguirre Cerda': '#bfb939',
+  'Peñaflor': '#7008a5',
+  'Peñalolén': '#24f270',
+  'Pirque': '#bf4339',
+  'Providencia': '#0829a5',
+  'Pudahuel': '#8cf224',
+  'Puente Alto': '#bf39a4',
+  'Quilicura': '#08a597',
+  'Quinta Normal': '#f2a324',
+  'Recoleta': '#6539bf',
+  'Renca': '#08a50e',
+  'San Bernardo': '#f22458',
+  'San Joaquín': '#3982bf',
+  'San José de Maipo': '#8ca508',
+  'San Miguel': '#d724f2',
+  'San Pedro': '#39bf86',
+  'San Ramón': '#a53508',
+  'Santiago': '#2425f2',
+  'Talagante': '#61bf39',
+  'Til Til': '#a50865',
+  'Vitacura': '#24d9f2',
+};
+
 // ─────────────────────────────────────────────────────────────
 const CARD: React.CSSProperties = { background: '#fff', border: '1px solid #bfdbfe', borderRadius: 14 };
 const INPUT_S: React.CSSProperties = {
@@ -1291,7 +1347,22 @@ export default function Home() {
                   <Slider label="Crecimiento UF anual (inflación)" value={p.ufAnnualGrowthPercent} min={0} max={8} step={0.5}
                     display={`${p.ufAnnualGrowthPercent}%`} onChange={v => set('ufAnnualGrowthPercent', v)} />
                   <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>Comuna</p>
-                  <input value={p.commune} onChange={e => set('commune', e.target.value)} style={{ ...INPUT_S, marginBottom: 14 }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                    <span style={{
+                      display: 'inline-block', width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
+                      background: COMUNAS_RM[p.commune] ?? '#94a3b8',
+                      border: '2px solid #fff', boxShadow: '0 0 0 1.5px #c3d8f7',
+                    }} />
+                    <select
+                      value={p.commune}
+                      onChange={e => set('commune', e.target.value)}
+                      style={{ ...INPUT_S, flex: 1 }}
+                    >
+                      {Object.keys(COMUNAS_RM).map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
 
                   <p style={{ fontSize: 10, fontWeight: 700, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Estacionamientos</p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
