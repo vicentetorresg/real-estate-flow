@@ -471,32 +471,11 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
 }
 
 // ─── Auth ────────────────────────────────────────────────────
-const USERS: Record<string, { role: 'admin' | 'asesor' }> = {
-  'proppi:20262026': { role: 'asesor' },
-  'admin:admin':     { role: 'admin'  },
-};
-const SESSION_KEY = 'cotiz_session';
-
-const INPUT_S: React.CSSProperties = {
-  background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: 8,
-  padding: '8px 10px', fontSize: 13, color: '#0f2957', outline: 'none', width: '100%',
-};
-
 // ─── Page ────────────────────────────────────────────────────
 export default function FlujoPage() {
-  const [authed, setAuthed] = useState(false);
-  const [user, setUser]     = useState('');
-  const [pass, setPass]     = useState('');
-  const [loginErr, setLoginErr] = useState('');
   const [p, setP] = useState<SimulationParams | null>(null);
 
   useEffect(() => {
-    // Check session
-    try {
-      const s = localStorage.getItem(SESSION_KEY);
-      if (s) { const { role } = JSON.parse(s); if (role) setAuthed(true); }
-    } catch {}
-    // Load params
     try {
       const params = new URLSearchParams(window.location.search);
       const s = params.get('s');
@@ -504,48 +483,7 @@ export default function FlujoPage() {
     } catch {}
   }, []);
 
-  const login = () => {
-    const key = `${user.trim().toLowerCase()}:${pass.trim()}`;
-    if (USERS[key]) {
-      try { localStorage.setItem(SESSION_KEY, JSON.stringify({ role: USERS[key].role })); } catch {}
-      setAuthed(true);
-      setLoginErr('');
-    } else {
-      setLoginErr('Usuario o contraseña incorrectos.');
-    }
-  };
-
   const R = useMemo(() => (p ? runSimulation(p) : null), [p]);
-
-  // ── Login wall ──────────────────────────────────────────────
-  if (!authed) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#f0f7ff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, fontFamily: 'system-ui,sans-serif' }}>
-        <div style={{ background: '#fff', border: '1px solid #bfdbfe', borderRadius: 14, width: '100%', maxWidth: 360, padding: 36, boxShadow: '0 8px 40px #1d4ed815' }}>
-          <div style={{ textAlign: 'center', marginBottom: 28 }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <div style={{ width: 36, height: 36, background: 'linear-gradient(135deg,#1d4ed8,#0284c7)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 900, color: '#fff' }}>P</div>
-              <span style={{ fontSize: 18, fontWeight: 800, color: '#0f2957' }}>Proppi</span>
-            </div>
-            <h1 style={{ fontSize: 15, fontWeight: 800, color: '#0f2957', margin: 0 }}>Flujo Detallado</h1>
-            <p style={{ fontSize: 12, color: '#6b93c4', marginTop: 4 }}>Acceso interno Proppi</p>
-          </div>
-          <div style={{ marginBottom: 12 }}>
-            <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 4 }}>Usuario</p>
-            <input value={user} onChange={e => setUser(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} style={INPUT_S} placeholder="proppi o admin" />
-          </div>
-          <div style={{ marginBottom: 18 }}>
-            <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 4 }}>Contraseña</p>
-            <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} style={INPUT_S} placeholder="••••••••" />
-          </div>
-          {loginErr && <p style={{ fontSize: 11, color: '#dc2626', marginBottom: 12, textAlign: 'center' }}>{loginErr}</p>}
-          <button onClick={login} style={{ border: 'none', cursor: 'pointer', borderRadius: 8, fontWeight: 700, fontSize: 13, width: '100%', padding: '12px 0', background: 'linear-gradient(135deg,#1d4ed8,#0284c7)', color: '#fff' }}>
-            Ingresar →
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   if (!p || !R) {
     return (
