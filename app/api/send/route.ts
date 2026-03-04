@@ -11,53 +11,94 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 });
   }
 
-  const displayName = clientName || 'estimado/a cliente';
+  const firstName   = clientName ? clientName.split(' ')[0] : null;
+  const displayName = firstName  || 'estimado/a';
   const asesorFirst = asesorName ? asesorName.split(' ')[0] : null;
 
-  const subject = asesorFirst
-    ? `${asesorFirst} de Proppi te compartió tu simulación inmobiliaria`
-    : `Tu simulación inmobiliaria${clientName ? ` — ${clientName}` : ''}`;
+  const subject = clientName
+    ? `${clientName}, aquí está tu plan de inversión inmobiliaria personalizado`
+    : asesorFirst
+      ? `${asesorFirst} de Proppi te compartió tu simulación inmobiliaria`
+      : 'Tu plan de inversión inmobiliaria personalizado — Proppi';
 
   const html = `
 <!DOCTYPE html>
 <html lang="es">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#f0f7ff;font-family:system-ui,-apple-system,sans-serif;">
-  <div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px #1d4ed820;">
-    <div style="background:linear-gradient(135deg,#1d4ed8,#0284c7);padding:28px 32px;">
-      <div style="margin-bottom:12px;">
-        <span style="display:inline-block;width:34px;height:34px;background:#fff;border-radius:7px;font-weight:900;font-size:17px;color:#1d4ed8;text-align:center;line-height:34px;vertical-align:middle;margin-right:10px;">P</span>
-        <span style="display:inline-block;font-size:18px;font-weight:800;color:#fff;vertical-align:middle;">Proppi</span>
+  <div style="max-width:580px;margin:32px auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 8px 40px #1d4ed825;">
+
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#1d4ed8,#0284c7);padding:32px 36px 28px;">
+      <div style="margin-bottom:16px;">
+        <span style="display:inline-block;width:36px;height:36px;background:#fff;border-radius:8px;font-weight:900;font-size:18px;color:#1d4ed8;text-align:center;line-height:36px;vertical-align:middle;margin-right:10px;">P</span>
+        <span style="display:inline-block;font-size:17px;font-weight:800;color:#fff;vertical-align:middle;letter-spacing:-0.3px;">Proppi</span>
       </div>
-      ${projectName ? `<p style="font-size:11px;color:#93c5fd;font-weight:700;margin:0 0 4px;text-transform:uppercase;letter-spacing:0.08em;">${projectName}</p>` : ''}
-      <h1 style="font-size:22px;font-weight:800;color:#fff;margin:0 0 4px;">Simulación de Inversión Inmobiliaria</h1>
-      <p style="color:#bfdbfe;font-size:13px;margin:0;">Tu análisis personalizado está listo</p>
+      ${projectName ? `<p style="font-size:11px;color:#93c5fd;font-weight:700;margin:0 0 6px;text-transform:uppercase;letter-spacing:0.1em;">${projectName}</p>` : ''}
+      <h1 style="font-size:24px;font-weight:900;color:#fff;margin:0 0 6px;line-height:1.2;">Tu plan de inversión<br/>inmobiliaria está listo</h1>
+      <p style="color:#bfdbfe;font-size:13px;margin:0;">Preparado especialmente para ti · Proppi</p>
     </div>
-    <div style="padding:32px;">
-      <p style="font-size:15px;color:#0f2957;margin:0 0 4px;">Hola, <strong>${displayName}</strong></p>
-      ${clientRut ? `<p style="font-size:12px;color:#6b93c4;margin:0 0 12px;">RUT: <strong style="color:#0f2957;">${clientRut}</strong></p>` : '<p style="margin:0 0 12px;"></p>'}
-      ${asesorName ? `<p style="font-size:13px;color:#334d6e;margin:0 0 16px;"><strong style="color:#1d4ed8;">${asesorName}</strong> de Proppi preparó esta simulación especialmente para ti.</p>` : ''}
-      <p style="font-size:13px;color:#334d6e;line-height:1.6;margin:0 0 16px;">
-        Aquí encontrarás el análisis completo de tu inversión: flujo de caja mensual, dividendo hipotecario, arriendo neto, escenarios de plusvalía y resultado total al momento de venta.
+
+    <!-- Body -->
+    <div style="padding:36px;">
+
+      <p style="font-size:17px;font-weight:700;color:#0f2957;margin:0 0 6px;">
+        Hola, ${displayName} 👋
       </p>
-      ${isStatic ? '' : '<p style="font-size:12px;color:#6b93c4;margin:0 0 20px;">💡 Esta simulación es <strong>interactiva</strong>: puedes mover los parámetros y ver cómo cambian los resultados en tiempo real.</p>'}
-      <div style="text-align:center;margin-bottom:28px;">
-        <a href="${shareLink}" style="display:inline-block;background:linear-gradient(135deg,#1d4ed8,${isStatic ? '#0284c7' : '#7c3aed'});color:#fff;text-decoration:none;padding:14px 32px;border-radius:12px;font-size:14px;font-weight:700;letter-spacing:0.02em;">
-          ${isStatic ? '📋 Ver mi simulación →' : '🎮 Abrir simulación interactiva →'}
+      ${clientRut ? `<p style="font-size:11px;color:#94a3b8;margin:0 0 20px;">RUT ${clientRut}</p>` : '<div style="margin-bottom:20px;"></div>'}
+
+      <p style="font-size:14px;color:#334d6e;line-height:1.7;margin:0 0 16px;">
+        ${asesorName
+          ? `<strong style="color:#1d4ed8;">${asesorName}</strong> del equipo Proppi preparó este plan exclusivamente para ti.`
+          : 'El equipo de Proppi preparó este plan exclusivamente para ti.'
+        }
+        Queremos que puedas tomar tu decisión de inversión inmobiliaria de forma <strong style="color:#0f2957;">completamente informada</strong>, con todos los números sobre la mesa.
+      </p>
+
+      <p style="font-size:14px;color:#334d6e;line-height:1.7;margin:0 0 24px;">
+        En este análisis encontrarás el flujo mes a mes, cuánto pagarás de dividendo, cuánto recibirás de arriendo, y cuál sería tu ganancia real al momento de vender — en dos escenarios distintos. Sin letra chica.
+      </p>
+
+      <!-- Highlights -->
+      <div style="display:flex;gap:10px;margin-bottom:28px;">
+        <div style="flex:1;background:#eff6ff;border-radius:10px;padding:14px 16px;text-align:center;">
+          <p style="font-size:20px;margin:0 0 4px;">📊</p>
+          <p style="font-size:11px;font-weight:700;color:#1d4ed8;margin:0;">Flujo mes a mes</p>
+        </div>
+        <div style="flex:1;background:#f0fdf4;border-radius:10px;padding:14px 16px;text-align:center;">
+          <p style="font-size:20px;margin:0 0 4px;">🏠</p>
+          <p style="font-size:11px;font-weight:700;color:#15803d;margin:0;">Arriendo neto</p>
+        </div>
+        <div style="flex:1;background:#f5f3ff;border-radius:10px;padding:14px 16px;text-align:center;">
+          <p style="font-size:20px;margin:0 0 4px;">📈</p>
+          <p style="font-size:11px;font-weight:700;color:#7c3aed;margin:0;">Plusvalía proyectada</p>
+        </div>
+      </div>
+
+      ${!isStatic ? '<p style="font-size:12px;background:#f5f3ff;color:#7c3aed;border-radius:8px;padding:10px 14px;margin:0 0 24px;">💡 Tu simulación es <strong>interactiva</strong> — puedes mover los parámetros (tasa, arriendo, plazo) y ver cómo cambian los números en tiempo real.</p>' : ''}
+
+      <!-- CTA -->
+      <div style="text-align:center;margin-bottom:30px;">
+        <a href="${shareLink}" style="display:inline-block;background:linear-gradient(135deg,#1d4ed8,${isStatic ? '#0284c7' : '#7c3aed'});color:#fff;text-decoration:none;padding:16px 40px;border-radius:14px;font-size:15px;font-weight:800;letter-spacing:0.01em;box-shadow:0 4px 20px #1d4ed830;">
+          ${isStatic ? 'Ver mi plan de inversión →' : 'Abrir mi simulación →'}
         </a>
+        <p style="font-size:11px;color:#94a3b8;margin:12px 0 0;">Link único y personal — solo tú tienes acceso</p>
       </div>
-      <div style="background:#f0f7ff;border-radius:10px;padding:14px 18px;margin-bottom:20px;">
-        <p style="font-size:11px;color:#6b93c4;margin:0 0 4px;">Link directo:</p>
-        <p style="font-size:10px;color:#1d4ed8;word-break:break-all;margin:0;font-family:monospace;">${shareLink}</p>
+
+      <div style="border-top:1px solid #e2e8f0;padding-top:20px;">
+        <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
+          ¿Tienes preguntas? Responde este correo o contáctate directamente con${asesorName ? ` <strong style="color:#334d6e;">${asesorName}</strong>` : ' tu asesor Proppi'}. Estamos para ayudarte a dar el próximo paso.<br/><br/>
+          <em>Los valores son estimativos y no garantizan retorno de inversión.</em>
+        </p>
       </div>
-      <p style="font-size:11px;color:#93b4d4;line-height:1.5;margin:0;">
-        Este link es único y contiene tu simulación completa. Puedes guardarlo y compartirlo cuando quieras.
-        Los valores son estimativos y no garantizan retorno de inversión.
-      </p>
     </div>
-    <div style="background:#f8fbff;border-top:1px solid #dbeafe;padding:16px 32px;text-align:center;">
-      <p style="font-size:11px;color:#93b4d4;margin:0;">Proppi · Simulador Inmobiliario${asesorName ? ` · ${asesorName}` : ''}</p>
+
+    <!-- Footer -->
+    <div style="background:#f8fbff;border-top:1px solid #dbeafe;padding:16px 36px;display:flex;justify-content:space-between;align-items:center;">
+      <p style="font-size:11px;color:#94a3b8;margin:0;font-weight:600;">Proppi · Inversión Inmobiliaria</p>
+      ${asesorName ? `<p style="font-size:11px;color:#6b93c4;margin:0;">${asesorName}</p>` : ''}
     </div>
+
   </div>
 </body>
 </html>
