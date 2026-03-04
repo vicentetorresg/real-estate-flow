@@ -282,7 +282,7 @@ export default function CotizacionesPage() {
         <div style={{ ...CARD, width: '100%', maxWidth: 380, padding: 36, boxShadow: '0 8px 40px #1d4ed815' }}>
           <div style={{ textAlign: 'center', marginBottom: 28 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <div style={{ width: 36, height: 36, background: '#eff6ff', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo.png" alt="Proppi" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>
+              <div style={{ width: 56, height: 56, background: '#eff6ff', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo2.png" alt="Proppi" style={{ width: 44, height: 44, objectFit: 'contain' }} /></div>
               <span style={{ fontSize: 18, fontWeight: 800, color: '#0f2957' }}>Proppi</span>
             </div>
             <h1 style={{ fontSize: 16, fontWeight: 800, color: '#0f2957', margin: 0 }}>Portal de Asesores</h1>
@@ -432,7 +432,7 @@ export default function CotizacionesPage() {
   const header = (
     <div style={{ background: 'linear-gradient(135deg,#1d4ed8,#0284c7)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 32, height: 32, background: '#fff', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo.png" alt="Proppi" style={{ width: 22, height: 22, objectFit: 'contain' }} /></div>
+        <div style={{ width: 44, height: 44, background: '#fff', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo2.png" alt="Proppi" style={{ width: 36, height: 36, objectFit: 'contain' }} /></div>
         <div>
           <p style={{ fontSize: 14, fontWeight: 800, color: '#fff', margin: 0 }}>
             {role === 'admin' ? 'Proppi · Dashboard Admin' : 'Proppi · Mis Cotizaciones'}

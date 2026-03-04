@@ -83,7 +83,7 @@ function PdfTemplate({ p, R, clientName, clientRut, asesor }: {
         <div style={{ ...ROW, justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 40, height: 40, background: '#fff', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo2.png" alt="Proppi" style={{ width: 28, height: 28, objectFit: 'contain' }} /></div>
+            <div style={{ width: 52, height: 52, background: '#fff', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo2.png" alt="Proppi" style={{ width: 44, height: 44, objectFit: 'contain' }} /></div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1 }}>Proppi</div>
               <div style={{ fontSize: 10, color: '#93c5fd', marginTop: 2 }}>Inversión Inmobiliaria</div>
@@ -443,7 +443,7 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
           }}>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-              <div style={{ width: 36, height: 36, background: '#eff6ff', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo2.png" alt="Proppi" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>
+              <div style={{ width: 52, height: 52, background: '#eff6ff', borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo2.png" alt="Proppi" style={{ width: 44, height: 44, objectFit: 'contain' }} /></div>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: '#0f2957' }}>Generar PDF</div>
                 <div style={{ fontSize: 11, color: '#6b93c4' }}>{p.projectName || 'Simulación de inversión'}</div>
