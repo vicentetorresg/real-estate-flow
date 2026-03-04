@@ -624,7 +624,7 @@ function ChartTip({ active, payload, label }: { active?: boolean; payload?: TTP[
   );
 }
 
-const ASESORES = ['Diego Sánchez', 'Cristóbal Sepúlveda', 'Matías Bertelsen'];
+const ASESORES = ['Diego Sánchez', 'Cristóbal Sepúlveda', 'Matías Bertelsen', 'Vicente Torres'];
 
 function SendModal({ p, getShareLink, onClose }: { p: SimulationParams; getShareLink: (mode: 'static' | 'dynamic') => string; onClose: () => void }) {
   const [step, setStep] = React.useState<'mode' | 'send'>('mode');

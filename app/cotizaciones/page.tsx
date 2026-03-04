@@ -24,7 +24,7 @@ interface Cotizacion {
   resend_of: string | null;
 }
 
-const ASESORES = ['Diego Sánchez', 'Cristóbal Sepúlveda', 'Matías Bertelsen'];
+const ASESORES = ['Diego Sánchez', 'Cristóbal Sepúlveda', 'Matías Bertelsen', 'Vicente Torres'];
 
 // ─── Utils ───────────────────────────────────────────────────
 function fDate(iso: string) {
