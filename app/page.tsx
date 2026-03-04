@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import PdfExport from './components/PdfExport';
+import RutInput from './components/RutInput';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine, Area, AreaChart,
@@ -1843,7 +1844,7 @@ export default function Home() {
                   <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>Nombre del cliente</p>
                   <input value={p.clientName} onChange={e => set('clientName', e.target.value)} style={{ ...INPUT_S, marginBottom: 14 }} placeholder="Nombre Apellido" />
                   <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>RUT</p>
-                  <input value={p.clientRut} onChange={e => set('clientRut', e.target.value)} style={{ ...INPUT_S, marginBottom: 14 }} placeholder="12.345.678-9" />
+                  <RutInput value={p.clientRut} onChange={v => set('clientRut', v)} style={{ ...INPUT_S, marginBottom: 14 }} />
                   <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>Email del cliente</p>
                   <input type="email" value={p.clientEmail} onChange={e => set('clientEmail', e.target.value)} style={{ ...INPUT_S, marginBottom: 14 }} placeholder="cliente@email.com" />
                   <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>

@@ -1,5 +1,6 @@
 'use client';
 import React, { useRef, useState } from 'react';
+import RutInput from './RutInput';
 
 const ASESORES = ['Diego Sánchez', 'Cristóbal Sepúlveda', 'Matías Bertelsen', 'Vicente Torres'];
 
@@ -447,7 +448,7 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
               </div>
               <div>
                 <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 5 }}>RUT</p>
-                <input value={clientRut} onChange={e => setClientRut(e.target.value)} style={INPUT} placeholder="12.345.678-9" />
+                <RutInput value={clientRut} onChange={setClientRut} style={INPUT} />
               </div>
               <div>
                 <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 5 }}>Asesor</p>
