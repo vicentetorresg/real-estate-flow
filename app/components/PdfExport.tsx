@@ -121,16 +121,27 @@ function PdfTemplate({ p, R, clientName, clientRut, asesor }: {
       {/* ── CLIENT ROW ───────────────────────────── */}
       <div style={{
         background: '#eff6ff', borderBottom: '2px solid #dbeafe',
-        padding: '12px 36px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '14px 36px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <div style={{ display: 'flex', gap: 24, fontSize: 12 }}>
-          <span style={{ color: '#6b93c4' }}>👤 Preparado para</span>
-          <strong style={{ color: '#0f2957' }}>{clientName || '—'}</strong>
-          {clientRut && <><span style={{ color: '#bfdbfe' }}>·</span><span style={{ color: '#6b93c4' }}>RUT</span><strong style={{ color: '#0f2957' }}>{clientRut}</strong></>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontSize: 12 }}>
+          <div>
+            <div style={{ fontSize: 9, color: '#93b4d4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>Preparado para</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#0f2957' }}>{clientName || '—'}</div>
+            {clientRut && <div style={{ fontSize: 11, color: '#6b93c4', marginTop: 1 }}>RUT {clientRut}</div>}
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#6b93c4' }}>
-          {asesor && <span>Asesor: <strong style={{ color: '#1d4ed8' }}>{asesor}</strong></span>}
-          <span>{todayLabel}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          {asesor && (
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 9, color: '#93b4d4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>Asesor</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#1d4ed8' }}>{asesor}</div>
+              <div style={{ fontSize: 9, color: '#6b93c4', marginTop: 1 }}>Proppi</div>
+            </div>
+          )}
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 9, color: '#93b4d4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>Fecha</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#0f2957' }}>{todayLabel}</div>
+          </div>
         </div>
       </div>
 
