@@ -325,10 +325,9 @@ export default function CotizacionesPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ background: '#eff6ff', borderBottom: '2px solid #bfdbfe' }}>
-                {(role === 'admin'
-                  ? ['ID', 'Fecha', 'Asesor', 'Cliente', 'Email', 'Proyecto', 'Comuna', 'Modo', 'Acciones']
-                  : ['ID', 'Fecha', 'Cliente', 'Email', 'Proyecto', 'Comuna', 'Acciones']
-                ).map(h => (
+                {['ID', 'Fecha envío', 'Asesor', 'Cliente', 'Email', 'Proyecto', 'Comuna',
+                  ...(role === 'admin' ? ['Modo'] : []), 'Acciones'
+                ].map(h => (
                   <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>
                     {h}
                   </th>
@@ -345,13 +344,14 @@ export default function CotizacionesPage() {
                     {c.resend_of && <span style={{ display: 'block', fontSize: 9, color: '#f59e0b', fontWeight: 700, marginTop: 2 }}>↩ reenvío</span>}
                   </td>
                   <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#334d6e', fontSize: 11 }}>
-                    {fDateShort(c.created_at)}
+                    <span style={{ display: 'block' }}>{fDateShort(c.created_at)}</span>
+                    <span style={{ fontSize: 10, color: '#94a3b8' }}>
+                      {new Date(c.created_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                   </td>
-                  {role === 'admin' && (
-                    <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontWeight: 600, color: '#0f2957' }}>
-                      {c.asesor_name || <span style={{ color: '#94a3b8', fontWeight: 400 }}>—</span>}
-                    </td>
-                  )}
+                  <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontWeight: 600, color: '#0f2957' }}>
+                    {c.asesor_name || <span style={{ color: '#94a3b8', fontWeight: 400 }}>—</span>}
+                  </td>
                   <td style={{ padding: '10px 14px' }}>
                     <p style={{ margin: 0, fontWeight: 600, color: '#0f2957' }}>{c.client_name || '—'}</p>
                     {c.client_rut && <p style={{ margin: 0, fontSize: 10, color: '#6b93c4' }}>{c.client_rut}</p>}
