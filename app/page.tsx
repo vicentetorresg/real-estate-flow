@@ -1162,7 +1162,7 @@ const LOGIN_INPUT: React.CSSProperties = {
 // ─────────────────────────────────────────────────────────────
 export default function Home() {
   const [p, setP] = useState<SimulationParams>(DEFAULTS);
-  const [tab, setTab] = useState<'prop' | 'credit' | 'pie' | 'rent' | 'exit' | 'cliente'>('credit');
+  const [tab, setTab] = useState<'prop' | 'credit' | 'pie' | 'rent' | 'exit' | 'cliente'>('prop');
   const [showSendModal, setShowSendModal] = useState(false);
   const [showMap, setShowMap]             = useState(false);
   const [saved, setSaved] = useState(false);
