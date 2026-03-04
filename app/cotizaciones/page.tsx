@@ -74,10 +74,12 @@ function ResendModal({ cotiz, onClose, onSent }: {
   onClose: () => void;
   onSent: () => void;
 }) {
-  const [email, setEmail]   = useState(cotiz.client_email);
-  const [asesor, setAsesor] = useState(cotiz.asesor_name || '');
-  const [sending, setSending] = useState(false);
-  const [error, setError]   = useState('');
+  const [email, setEmail]       = useState(cotiz.client_email);
+  const [clientName, setClientName] = useState(cotiz.client_name || '');
+  const [clientRut, setClientRut]   = useState(cotiz.client_rut || '');
+  const [asesor, setAsesor]     = useState(cotiz.asesor_name || '');
+  const [sending, setSending]   = useState(false);
+  const [error, setError]       = useState('');
 
   const handle = async () => {
     if (!email) return;
@@ -88,8 +90,8 @@ function ResendModal({ cotiz, onClose, onSent }: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: email,
-          clientName:  cotiz.client_name,
-          clientRut:   cotiz.client_rut,
+          clientName:  clientName || undefined,
+          clientRut:   clientRut || undefined,
           shareLink:   cotiz.share_link,
           mode:        cotiz.mode,
           projectName: cotiz.project_name,
@@ -111,11 +113,20 @@ function ResendModal({ cotiz, onClose, onSent }: {
           <button onClick={onClose} style={{ ...BTN, background: '#f0f7ff', color: '#6b93c4', padding: '4px 10px' }}>✕</button>
         </div>
 
-        <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 4 }}>Cliente</p>
-        <p style={{ fontSize: 13, fontWeight: 700, color: '#0f2957', marginBottom: 4 }}>
-          {cotiz.client_name || '—'}{cotiz.client_rut ? ` · ${cotiz.client_rut}` : ''}
-        </p>
-        {cotiz.project_name && <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 16 }}>Proyecto: {cotiz.project_name}</p>}
+        {cotiz.project_name && <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 14 }}>Proyecto: {cotiz.project_name}</p>}
+
+        <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 4 }}>Nombre del cliente:</p>
+        <input
+          value={clientName} onChange={e => setClientName(e.target.value)}
+          style={{ ...INPUT_S, marginBottom: 10 }}
+          placeholder="Nombre Apellido"
+        />
+        <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 4 }}>RUT:</p>
+        <input
+          value={clientRut} onChange={e => setClientRut(e.target.value)}
+          style={{ ...INPUT_S, marginBottom: 14 }}
+          placeholder="12.345.678-9"
+        />
 
         <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 4 }}>Asesor que envía:</p>
         <select value={asesor} onChange={e => setAsesor(e.target.value)} style={{ ...INPUT_S, marginBottom: 14 }}>
