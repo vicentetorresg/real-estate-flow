@@ -1191,7 +1191,7 @@ export default function Home() {
     } catch {}
     try {
       const sess = localStorage.getItem('cotiz_session');
-      if (sess) { const { role } = JSON.parse(sess); if (role) { setAuthed(true); setHasSession(true); } }
+      if (sess) { const { role } = JSON.parse(sess); if (role) { setAuthed(true); setHasSession(true); setTab('prop'); } }
     } catch {}
     // Auto-fetch UF del día desde mindicador.cl
     const hasUrlParams = new URLSearchParams(window.location.search).get('s');
@@ -1210,7 +1210,7 @@ export default function Home() {
     const key = `${loginUser.trim().toLowerCase()}:${loginPass.trim()}`;
     if (AUTH_USERS[key]) {
       try { localStorage.setItem(SESSION_KEY, JSON.stringify({ role: AUTH_USERS[key].role })); } catch {}
-      setAuthed(true); setHasSession(true); setLoginErr('');
+      setAuthed(true); setHasSession(true); setLoginErr(''); setTab('prop');
     } else {
       setLoginErr('Usuario o contraseña incorrectos.');
     }

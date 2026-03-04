@@ -8,7 +8,7 @@ function cleanRut(rut: string): string {
   return rut.replace(/[^0-9kK]/g, '').toUpperCase();
 }
 
-/** Formatea: 19079952 + 2 → "19.079.952-2" */
+/** Formatea: 11111111 + K → "11.111.111-K" */
 export function formatRut(raw: string): string {
   const clean = cleanRut(raw);
   if (clean.length < 2) return clean;
@@ -46,7 +46,7 @@ interface RutInputProps {
   placeholder?: string;
 }
 
-export default function RutInput({ value, onChange, style, placeholder = '19.079.952-2' }: RutInputProps) {
+export default function RutInput({ value, onChange, style, placeholder = '11.111.111-K' }: RutInputProps) {
   const clean = cleanRut(value);
   const isValid   = clean.length >= 7 && validateRut(clean);
   const isInvalid = clean.length >= 7 && !validateRut(clean);

@@ -92,8 +92,8 @@ function PdfTemplate({ p, R, clientName, clientRut, asesor }: {
           {/* Badge */}
           <div style={{
             background: '#ffffff20', border: '1px solid #ffffff40',
-            borderRadius: 20, padding: '6px 16px', fontSize: 11, color: '#e0f2fe', fontWeight: 600,
-            lineHeight: 1.4,
+            borderRadius: 20, padding: '4px 16px 8px', fontSize: 11, color: '#e0f2fe', fontWeight: 600,
+            lineHeight: 1,
           }}>
             Simulación de Inversión · {todayLabel}
           </div>
@@ -372,7 +372,7 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
       const w = el.offsetWidth;
       const h = el.offsetHeight;
       const canvas = await html2canvas(el, {
-        scale: 2, useCORS: true, logging: false,
+        scale: 4, useCORS: true, logging: false,
         backgroundColor: '#ffffff',
         width: w, height: h,
         windowWidth: w, windowHeight: h,
