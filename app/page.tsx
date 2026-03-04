@@ -469,8 +469,8 @@ const DEFAULTS: SimulationParams = {
   saleCostPercent: 2.5, startMonth: 2, startYear: 2026,
   projectName: '',
   clientName: '', clientRut: '', clientEmail: '',
-  parkingCount: 0, parkingValueUF: 15, parkingBonoPie: true,
-  storageCount: 0, storageValueUF: 10, storageBonoPie: true,
+  parkingCount: 0, parkingValueUF: 300, parkingBonoPie: true,
+  storageCount: 0, storageValueUF: 100, storageBonoPie: true,
   guaranteedRentEnabled: false,
   guaranteedRentMonths: 24,
   guaranteedRentCLP: 450000,
@@ -484,59 +484,118 @@ const DEFAULTS: SimulationParams = {
 // ─────────────────────────────────────────────────────────────
 // UI PRIMITIVES
 // ─── Comunas RM ───────────────────────────────────────────────
-const COMUNAS_RM: Record<string, string> = {
-  'Alhué': '#f22424',
-  'Buin': '#3960bf',
-  'Calera de Tango': '#64a508',
-  'Cerrillos': '#f224d8',
-  'Cerro Navia': '#39bfa8',
-  'Colina': '#a55d08',
-  'Conchalí': '#5724f2',
-  'Curacaví': '#3fbf39',
-  'El Bosque': '#a5083c',
-  'El Monte': '#24a5f2',
-  'Estación Central': '#b4bf39',
-  'Huechuraba': '#8408a5',
-  'Independencia': '#24f28a',
-  'Isla de Maipo': '#bf5539',
-  'La Cisterna': '#0815a5',
-  'La Florida': '#71f224',
-  'La Granja': '#bf3992',
-  'La Pintana': '#089fa5',
-  'La Reina': '#f2be24',
-  'Lampa': '#7639bf',
-  'Las Condes': '#08a522',
-  'Lo Barnechea': '#f2243e',
-  'Lo Espejo': '#3971bf',
-  'Lo Prado': '#78a508',
-  'Macul': '#f124f2',
-  'Maipú': '#39bf97',
-  'María Pinto': '#a54908',
-  'Melipilla': '#3d24f2',
-  'Ñuñoa': '#50bf39',
-  'Padre Hurtado': '#a50851',
-  'Paine': '#24bff2',
-  'Pedro Aguirre Cerda': '#bfb939',
-  'Peñaflor': '#7008a5',
-  'Peñalolén': '#24f270',
-  'Pirque': '#bf4339',
-  'Providencia': '#0829a5',
-  'Pudahuel': '#8cf224',
-  'Puente Alto': '#bf39a4',
-  'Quilicura': '#08a597',
-  'Quinta Normal': '#f2a324',
-  'Recoleta': '#6539bf',
-  'Renca': '#08a50e',
-  'San Bernardo': '#f22458',
-  'San Joaquín': '#3982bf',
-  'San José de Maipo': '#8ca508',
-  'San Miguel': '#d724f2',
-  'San Pedro': '#39bf86',
-  'San Ramón': '#a53508',
-  'Santiago': '#2425f2',
-  'Talagante': '#61bf39',
-  'Til Til': '#a50865',
-  'Vitacura': '#24d9f2',
+const COMUNAS: Record<string, string> = {
+  // Arica y Parinacota
+  'Arica': '#c0392b', 'Camarones': '#c0392b', 'General Lagos': '#c0392b', 'Putre': '#c0392b',
+  // Tarapacá
+  'Alto Hospicio': '#e67e22', 'Camiña': '#e67e22', 'Colchane': '#e67e22', 'Huara': '#e67e22',
+  'Iquique': '#e67e22', 'Pica': '#e67e22', 'Pozo Almonte': '#e67e22',
+  // Antofagasta
+  'Antofagasta': '#d4ac0d', 'Calama': '#d4ac0d', 'María Elena': '#d4ac0d', 'Mejillones': '#d4ac0d',
+  'Ollagüe': '#d4ac0d', 'San Pedro de Atacama': '#d4ac0d', 'Sierra Gorda': '#d4ac0d',
+  'Taltal': '#d4ac0d', 'Tocopilla': '#d4ac0d',
+  // Atacama
+  'Alto del Carmen': '#8e44ad', 'Caldera': '#8e44ad', 'Chañaral': '#8e44ad', 'Copiapó': '#8e44ad',
+  'Diego de Almagro': '#8e44ad', 'Freirina': '#8e44ad', 'Huasco': '#8e44ad',
+  'Tierra Amarilla': '#8e44ad', 'Vallenar': '#8e44ad',
+  // Coquimbo
+  'Andacollo': '#27ae60', 'Canela': '#27ae60', 'Combarbalá': '#27ae60', 'Coquimbo': '#27ae60',
+  'Illapel': '#27ae60', 'La Higuera': '#27ae60', 'La Serena': '#27ae60', 'Los Vilos': '#27ae60',
+  'Monte Patria': '#27ae60', 'Ovalle': '#27ae60', 'Paihuano': '#27ae60', 'Punitaqui': '#27ae60',
+  'Río Hurtado': '#27ae60', 'Salamanca': '#27ae60', 'Vicuña': '#27ae60',
+  // Valparaíso
+  'Algarrobo': '#2980b9', 'Cabildo': '#2980b9', 'Calera': '#2980b9', 'Cartagena': '#2980b9',
+  'Casablanca': '#2980b9', 'Catemu': '#2980b9', 'Concón': '#2980b9', 'El Quisco': '#2980b9',
+  'El Tabo': '#2980b9', 'Hijuelas': '#2980b9', 'Isla de Pascua': '#2980b9', 'Juan Fernández': '#2980b9',
+  'La Cruz': '#2980b9', 'La Ligua': '#2980b9', 'Limache': '#2980b9', 'Llaillay': '#2980b9',
+  'Los Andes': '#2980b9', 'Nogales': '#2980b9', 'Olmué': '#2980b9', 'Panquehue': '#2980b9',
+  'Papudo': '#2980b9', 'Petorca': '#2980b9', 'Puchuncaví': '#2980b9', 'Putaendo': '#2980b9',
+  'Quilpué': '#2980b9', 'Quillota': '#2980b9', 'Quintero': '#2980b9', 'Rinconada': '#2980b9',
+  'San Antonio': '#2980b9', 'San Esteban': '#2980b9', 'San Felipe': '#2980b9', 'Santa María': '#2980b9',
+  'Santo Domingo': '#2980b9', 'Valparaíso': '#2980b9', 'Villa Alemana': '#2980b9',
+  'Viña del Mar': '#2980b9', 'Zapallar': '#2980b9',
+  // Región Metropolitana
+  'Alhué': '#f22424', 'Buin': '#3960bf', 'Calera de Tango': '#64a508', 'Cerrillos': '#f224d8',
+  'Cerro Navia': '#39bfa8', 'Colina': '#a55d08', 'Conchalí': '#5724f2', 'Curacaví': '#3fbf39',
+  'El Bosque': '#a5083c', 'El Monte': '#24a5f2', 'Estación Central': '#b4bf39', 'Huechuraba': '#8408a5',
+  'Independencia': '#24f28a', 'Isla de Maipo': '#bf5539', 'La Cisterna': '#0815a5',
+  'La Florida': '#71f224', 'La Granja': '#bf3992', 'La Pintana': '#089fa5', 'La Reina': '#f2be24',
+  'Lampa': '#7639bf', 'Las Condes': '#08a522', 'Lo Barnechea': '#f2243e', 'Lo Espejo': '#3971bf',
+  'Lo Prado': '#78a508', 'Macul': '#f124f2', 'Maipú': '#39bf97', 'María Pinto': '#a54908',
+  'Melipilla': '#3d24f2', 'Ñuñoa': '#50bf39', 'Padre Hurtado': '#a50851', 'Paine': '#24bff2',
+  'Pedro Aguirre Cerda': '#bfb939', 'Peñaflor': '#7008a5', 'Peñalolén': '#24f270',
+  'Pirque': '#bf4339', 'Providencia': '#0829a5', 'Pudahuel': '#8cf224', 'Puente Alto': '#bf39a4',
+  'Quilicura': '#08a597', 'Quinta Normal': '#f2a324', 'Recoleta': '#6539bf', 'Renca': '#08a50e',
+  'San Bernardo': '#f22458', 'San Joaquín': '#3982bf', 'San José de Maipo': '#8ca508',
+  'San Miguel': '#d724f2', 'San Pedro': '#39bf86', 'San Ramón': '#a53508', 'Santiago': '#2425f2',
+  'Talagante': '#61bf39', 'Til Til': '#a50865', 'Vitacura': '#24d9f2',
+  // O'Higgins
+  'Chépica': '#e74c3c', 'Chimbarongo': '#e74c3c', 'Codegua': '#e74c3c', 'Coinco': '#e74c3c',
+  'Coltauco': '#e74c3c', 'Doñihue': '#e74c3c', 'Graneros': '#e74c3c', 'La Estrella': '#e74c3c',
+  'Las Cabras': '#e74c3c', 'Litueche': '#e74c3c', 'Lolol': '#e74c3c', 'Machalí': '#e74c3c',
+  'Malloa': '#e74c3c', 'Marchihue': '#e74c3c', 'Mostazal': '#e74c3c', 'Nancagua': '#e74c3c',
+  'Navidad': '#e74c3c', 'Olivar': '#e74c3c', 'Palmilla': '#e74c3c', 'Paredones': '#e74c3c',
+  'Peralillo': '#e74c3c', 'Peumo': '#e74c3c', 'Pichidegua': '#e74c3c', 'Pichilemu': '#e74c3c',
+  'Placilla': '#e74c3c', 'Pumanque': '#e74c3c', 'Quinta de Tilcoco': '#e74c3c', 'Rancagua': '#e74c3c',
+  'Rengo': '#e74c3c', 'Requínoa': '#e74c3c', 'San Fernando': '#e74c3c', 'San Vicente': '#e74c3c',
+  'Santa Cruz': '#e74c3c',
+  // Maule
+  'Cauquenes': '#16a085', 'Chanco': '#16a085', 'Colbún': '#16a085', 'Constitución': '#16a085',
+  'Curicó': '#16a085', 'Curepto': '#16a085', 'Empedrado': '#16a085', 'Hualañé': '#16a085',
+  'Licantén': '#16a085', 'Linares': '#16a085', 'Longaví': '#16a085', 'Maule': '#16a085',
+  'Molina': '#16a085', 'Parral': '#16a085', 'Pelarco': '#16a085', 'Pelluhue': '#16a085',
+  'Pencahue': '#16a085', 'Rauco': '#16a085', 'Retiro': '#16a085', 'Río Claro': '#16a085',
+  'Romeral': '#16a085', 'Sagrada Familia': '#16a085', 'San Clemente': '#16a085', 'San Javier': '#16a085',
+  'San Rafael': '#16a085', 'Talca': '#16a085', 'Teno': '#16a085', 'Vichuquén': '#16a085',
+  'Villa Alegre': '#16a085', 'Yerbas Buenas': '#16a085',
+  // Ñuble
+  'Bulnes': '#7f8c8d', 'Chillán': '#7f8c8d', 'Chillán Viejo': '#7f8c8d', 'Cobquecura': '#7f8c8d',
+  'Coelemu': '#7f8c8d', 'Coihueco': '#7f8c8d', 'El Carmen': '#7f8c8d', 'Ninhue': '#7f8c8d',
+  'Ñiquén': '#7f8c8d', 'Pemuco': '#7f8c8d', 'Pinto': '#7f8c8d', 'Portezuelo': '#7f8c8d',
+  'Quillón': '#7f8c8d', 'Quirihue': '#7f8c8d', 'Ránquil': '#7f8c8d', 'San Carlos': '#7f8c8d',
+  'San Fabián': '#7f8c8d', 'San Ignacio': '#7f8c8d', 'San Nicolás': '#7f8c8d', 'Treguaco': '#7f8c8d',
+  'Yungay': '#7f8c8d',
+  // Biobío
+  'Alto Biobío': '#2c3e50', 'Antuco': '#2c3e50', 'Arauco': '#2c3e50', 'Cabrero': '#2c3e50',
+  'Cañete': '#2c3e50', 'Chiguayante': '#2c3e50', 'Concepción': '#2c3e50', 'Contulmo': '#2c3e50',
+  'Coronel': '#2c3e50', 'Curanilahue': '#2c3e50', 'Florida': '#2c3e50', 'Hualpén': '#2c3e50',
+  'Hualqui': '#2c3e50', 'Laja': '#2c3e50', 'Lebu': '#2c3e50', 'Los Álamos': '#2c3e50',
+  'Los Ángeles': '#2c3e50', 'Lota': '#2c3e50', 'Mulchén': '#2c3e50', 'Nacimiento': '#2c3e50',
+  'Negrete': '#2c3e50', 'Penco': '#2c3e50', 'Quilaco': '#2c3e50', 'Quilleco': '#2c3e50',
+  'San Pedro de la Paz': '#2c3e50', 'San Rosendo': '#2c3e50', 'Santa Bárbara': '#2c3e50',
+  'Santa Juana': '#2c3e50', 'Talcahuano': '#2c3e50', 'Tirúa': '#2c3e50', 'Tomé': '#2c3e50',
+  'Tucapel': '#2c3e50', 'Yumbel': '#2c3e50',
+  // La Araucanía
+  'Angol': '#1e8449', 'Carahue': '#1e8449', 'Cholchol': '#1e8449', 'Collipulli': '#1e8449',
+  'Cunco': '#1e8449', 'Curacautín': '#1e8449', 'Curarrehue': '#1e8449', 'Ercilla': '#1e8449',
+  'Freire': '#1e8449', 'Galvarino': '#1e8449', 'Gorbea': '#1e8449', 'Lautaro': '#1e8449',
+  'Loncoche': '#1e8449', 'Lonquimay': '#1e8449', 'Los Sauces': '#1e8449', 'Lumaco': '#1e8449',
+  'Melipeuco': '#1e8449', 'Nueva Imperial': '#1e8449', 'Padre Las Casas': '#1e8449',
+  'Perquenco': '#1e8449', 'Pitrufquén': '#1e8449', 'Pucón': '#1e8449', 'Purén': '#1e8449',
+  'Renaico': '#1e8449', 'Saavedra': '#1e8449', 'Temuco': '#1e8449', 'Teodoro Schmidt': '#1e8449',
+  'Toltén': '#1e8449', 'Traiguén': '#1e8449', 'Victoria': '#1e8449', 'Vilcún': '#1e8449',
+  'Villarrica': '#1e8449',
+  // Los Ríos
+  'Corral': '#1abc9c', 'Futrono': '#1abc9c', 'La Unión': '#1abc9c', 'Lago Ranco': '#1abc9c',
+  'Lanco': '#1abc9c', 'Los Lagos': '#1abc9c', 'Máfil': '#1abc9c', 'Mariquina': '#1abc9c',
+  'Paillaco': '#1abc9c', 'Panguipulli': '#1abc9c', 'Río Bueno': '#1abc9c', 'Valdivia': '#1abc9c',
+  // Los Lagos
+  'Ancud': '#2471a3', 'Calbuco': '#2471a3', 'Castro': '#2471a3', 'Chaitén': '#2471a3',
+  'Chonchi': '#2471a3', 'Cochamó': '#2471a3', 'Curaco de Vélez': '#2471a3', 'Dalcahue': '#2471a3',
+  'Fresia': '#2471a3', 'Frutillar': '#2471a3', 'Futaleufú': '#2471a3', 'Hualaihué': '#2471a3',
+  'Llanquihue': '#2471a3', 'Los Muermos': '#2471a3', 'Maullín': '#2471a3', 'Osorno': '#2471a3',
+  'Palena': '#2471a3', 'Puerto Montt': '#2471a3', 'Puerto Octay': '#2471a3', 'Puerto Varas': '#2471a3',
+  'Puqueldón': '#2471a3', 'Purranque': '#2471a3', 'Puyehue': '#2471a3', 'Queilén': '#2471a3',
+  'Quellón': '#2471a3', 'Quemchi': '#2471a3', 'Quinchao': '#2471a3', 'Río Negro': '#2471a3',
+  'San Juan de la Costa': '#2471a3', 'San Pablo': '#2471a3',
+  // Aysén
+  'Aysén': '#9b59b6', 'Chile Chico': '#9b59b6', 'Cisnes': '#9b59b6', 'Cochrane': '#9b59b6',
+  'Coyhaique': '#9b59b6', 'Guaitecas': '#9b59b6', 'Lago Verde': '#9b59b6', 'O\'Higgins': '#9b59b6',
+  'Río Ibáñez': '#9b59b6', 'Tortel': '#9b59b6',
+  // Magallanes
+  'Antártica': '#1a5276', 'Cabo de Hornos': '#1a5276', 'Laguna Blanca': '#1a5276',
+  'Natales': '#1a5276', 'Porvenir': '#1a5276', 'Primavera': '#1a5276', 'Punta Arenas': '#1a5276',
+  'Río Verde': '#1a5276', 'San Gregorio': '#1a5276', 'Timaukel': '#1a5276', 'Torres del Paine': '#1a5276',
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -781,7 +840,17 @@ function CompactScenarios({ R, p }: { R: SimulationResult; p: SimulationParams }
           <p style={{ fontSize: 10, color: '#6b93c4', marginBottom: 8 }}>
             {fPct(ann, 1)}/año · +{fPct(total, 1)} en {p.analysisYears}a · Venta {ML[sm]} {sy}
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
+            <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, background: '#ffffff88', borderRadius: 8, padding: '8px 10px' }}>
+              <div>
+                <p style={{ fontSize: 9, color: '#6b93c4', marginBottom: 1 }}>💰 Total invertido</p>
+                <p style={{ fontSize: 13, fontWeight: 800, color: '#dc2626', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{fCLP(R.totalNegativeCashFlow, false)}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 9, color: '#6b93c4', marginBottom: 1 }}>🚀 Podrías ganar</p>
+                <p style={{ fontSize: 13, fontWeight: 800, color, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{fCLP(s.totalReturn, false)}</p>
+              </div>
+            </div>
             {[
               ['Precio venta', fUF(s.salePriceUF, 0)],
               ['Patrimonio neto', fCLP(s.netEquityCLP, false)],
@@ -1109,6 +1178,17 @@ export default function Home() {
       const sess = localStorage.getItem('cotiz_session');
       if (sess) { const { role } = JSON.parse(sess); if (role) { setAuthed(true); setHasSession(true); } }
     } catch {}
+    // Auto-fetch UF del día desde mindicador.cl
+    const hasUrlParams = new URLSearchParams(window.location.search).get('s');
+    if (!hasUrlParams) {
+      fetch('https://mindicador.cl/api/uf')
+        .then(r => r.json())
+        .then(data => {
+          const val = data?.serie?.[0]?.valor;
+          if (val && typeof val === 'number') setP(prev => ({ ...prev, ufValueCLP: Math.round(val) }));
+        })
+        .catch(() => {});
+    }
   }, []);
 
   const doLogin = () => {
@@ -1350,7 +1430,7 @@ export default function Home() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                     <span style={{
                       display: 'inline-block', width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
-                      background: COMUNAS_RM[p.commune] ?? '#94a3b8',
+                      background: COMUNAS[p.commune] ?? '#94a3b8',
                       border: '2px solid #fff', boxShadow: '0 0 0 1.5px #c3d8f7',
                     }} />
                     <select
@@ -1358,7 +1438,7 @@ export default function Home() {
                       onChange={e => set('commune', e.target.value)}
                       style={{ ...INPUT_S, flex: 1 }}
                     >
-                      {Object.keys(COMUNAS_RM).map(c => (
+                      {Object.keys(COMUNAS).map(c => (
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </select>
@@ -1497,8 +1577,8 @@ export default function Home() {
                       />
                     </div>
                     {p.operationalCostsCLP > 0 && (
-                      <p style={{ fontSize: 10, color: '#dc2626', marginTop: 4 }}>
-                        Se descuentan {fCLPFull(p.operationalCostsCLP)} el mes de escritura
+                      <p style={{ fontSize: 10, color: '#6b93c4', marginTop: 4 }}>
+                        Incluye {fCLPFull(p.operationalCostsCLP)} en gastos operacionales al escriturar
                       </p>
                     )}
                   </div>
