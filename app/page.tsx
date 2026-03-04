@@ -1065,6 +1065,21 @@ export default function Home() {
     }
   };
 
+  const handleSave = useCallback(() => {
+    const encoded = btoa(JSON.stringify(p));
+    window.history.replaceState({}, '', `?s=${encoded}`);
+    localStorage.setItem('real_estate_sim', JSON.stringify(p));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }, [p]);
+
+  const getShareLink = useCallback((mode: 'static' | 'dynamic' = 'dynamic') => {
+    const base = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${base}?s=${btoa(JSON.stringify(p))}&mode=${mode}`;
+  }, [p]);
+
+  const R = useMemo(() => runSimulation(p), [p]);
+
   // ── Login wall ──────────────────────────────────────────────
   if (!authed && !isClientLink) {
     return (
@@ -1094,21 +1109,6 @@ export default function Home() {
       </div>
     );
   }
-
-  const handleSave = useCallback(() => {
-    const encoded = btoa(JSON.stringify(p));
-    window.history.replaceState({}, '', `?s=${encoded}`);
-    localStorage.setItem('real_estate_sim', JSON.stringify(p));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }, [p]);
-
-  const getShareLink = useCallback((mode: 'static' | 'dynamic' = 'dynamic') => {
-    const base = typeof window !== 'undefined' ? window.location.origin : '';
-    return `${base}?s=${btoa(JSON.stringify(p))}&mode=${mode}`;
-  }, [p]);
-
-  const R = useMemo(() => runSimulation(p), [p]);
 
   // Fechas clave
   const escrituraMes = addMonths(p.startMonth, p.startYear,
