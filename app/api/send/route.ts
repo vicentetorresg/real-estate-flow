@@ -4,6 +4,7 @@ import { getSupabase } from '@/lib/supabase-server';
 const RESEND_API_KEY = 're_jBmmbDUG_59hD9hCgpFE7E1q1uKKVeJ4o';
 
 export async function POST(req: NextRequest) {
+  const origin = new URL(req.url).origin;
   const { to, clientName, clientRut, shareLink, mode, projectName, asesorName, resendOf, commune } = await req.json();
   const isStatic = mode === 'static';
 
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     <!-- Header -->
     <div style="background:linear-gradient(135deg,#1d4ed8,#0284c7);padding:32px 36px 28px;">
       <div style="margin-bottom:16px;">
-        <span style="display:inline-block;width:36px;height:36px;background:#fff;border-radius:8px;font-weight:900;font-size:18px;color:#1d4ed8;text-align:center;line-height:36px;vertical-align:middle;margin-right:10px;">P</span>
+        <img src="${origin}/logo2.png" alt="Proppi" width="36" height="36" style="display:inline-block;vertical-align:middle;margin-right:10px;border-radius:8px;background:#fff;" />
         <span style="display:inline-block;font-size:17px;font-weight:800;color:#fff;vertical-align:middle;letter-spacing:-0.3px;">Proppi</span>
       </div>
       ${projectName ? `<p style="font-size:11px;color:#93c5fd;font-weight:700;margin:0 0 6px;text-transform:uppercase;letter-spacing:0.1em;">${projectName}</p>` : ''}

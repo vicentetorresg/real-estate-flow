@@ -5,7 +5,13 @@ export const alt = 'Proppi — Simulador de Inversión Inmobiliaria';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
-export default function OGImage() {
+export default async function OGImage() {
+  const baseUrl = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'http://localhost:3000';
+  const logoData = await fetch(`${baseUrl}/logo2.png`).then(r => r.arrayBuffer());
+  const logoSrc = `data:image/png;base64,${Buffer.from(logoData).toString('base64')}`;
+
   return new ImageResponse(
     (
       <div
@@ -27,18 +33,7 @@ export default function OGImage() {
           gap: 20,
           marginBottom: 40,
         }}>
-          <div style={{
-            width: 80,
-            height: 80,
-            background: 'white',
-            borderRadius: 18,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 52,
-            fontWeight: 900,
-            color: '#1d4ed8',
-          }}>P</div>
+          <img src={logoSrc} width={80} height={80} style={{ borderRadius: 18, background: 'white', objectFit: 'contain' }} />
           <span style={{ fontSize: 52, fontWeight: 800, color: 'white' }}>Proppi</span>
         </div>
 

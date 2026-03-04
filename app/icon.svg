@@ -1,18 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1d4ed8"/>
-      <stop offset="100%" stop-color="#0284c7"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
-  <text
-    x="32" y="46"
-    font-family="system-ui, -apple-system, sans-serif"
-    font-size="42"
-    font-weight="900"
-    fill="white"
-    text-anchor="middle"
-    letter-spacing="-2"
-  >P</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 104 107">
+  <!--
+    Vectorized Proppi logo mark: arch/portal shape, open at bottom.
+    Right leg has a rectangular notch at inner-bottom-right corner.
+    Transparent background.
+  -->
+  <path fill-rule="evenodd" fill="#7b8de8" d="
+    M 0 105
+    L 0 50
+    A 50 50 0 0 1 100 50
+    L 100 105
+    Z
+    M 21 105
+    L 21 50
+    A 29 29 0 0 1 79 50
+    L 79 80
+    L 63 80
+    L 63 105
+    Z
+  "/>
 </svg>

@@ -83,7 +83,7 @@ function PdfTemplate({ p, R, clientName, clientRut, asesor }: {
         <div style={{ ...ROW, justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 40, height: 40, background: '#fff', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo.png" alt="Proppi" style={{ width: 28, height: 28, objectFit: 'contain' }} /></div>
+            <div style={{ width: 40, height: 40, background: '#fff', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo2.png" alt="Proppi" style={{ width: 28, height: 28, objectFit: 'contain' }} /></div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1 }}>Proppi</div>
               <div style={{ fontSize: 10, color: '#93c5fd', marginTop: 2 }}>Inversión Inmobiliaria</div>
@@ -332,7 +332,7 @@ function PdfTemplate({ p, R, clientName, clientRut, asesor }: {
       {/* ── FOOTER ───────────────────────────────── */}
       <div style={{ background: '#0f2957', padding: '16px 36px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 24, height: 24, background: '#fff', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo.png" alt="Proppi" style={{ width: 16, height: 16, objectFit: 'contain' }} /></div>
+          <div style={{ width: 24, height: 24, background: '#fff', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo2.png" alt="Proppi" style={{ width: 16, height: 16, objectFit: 'contain' }} /></div>
           <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>Proppi</span>
           <span style={{ fontSize: 10, color: '#4a7abf' }}>· proppi.cl</span>
         </div>
@@ -378,16 +378,19 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
         windowWidth: w, windowHeight: h,
       });
       const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
+      const pageW = 215.9; // Letter width in mm
+      const pageH = 279.4; // Letter height in mm
       const ratio = pageW / canvas.width;
       const imgH = canvas.height * ratio;
 
+      let pdf;
       if (imgH <= pageH) {
+        // Use exact content height to avoid blank space at bottom
+        pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pageW, imgH] });
         pdf.addImage(imgData, 'PNG', 0, 0, pageW, imgH);
       } else {
-        // Multi-page if needed
+        // Multi-page
+        pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pageW, pageH] });
         let y = 0;
         while (y < canvas.height) {
           if (y > 0) pdf.addPage();
@@ -440,7 +443,7 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
           }}>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-              <div style={{ width: 36, height: 36, background: '#eff6ff', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo.png" alt="Proppi" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>
+              <div style={{ width: 36, height: 36, background: '#eff6ff', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo2.png" alt="Proppi" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: '#0f2957' }}>Generar PDF</div>
                 <div style={{ fontSize: 11, color: '#6b93c4' }}>{p.projectName || 'Simulación de inversión'}</div>
