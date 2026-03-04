@@ -27,6 +27,7 @@ interface SimulationParams {
   annualRatePercent: number;
   loanTermYears: number;
   gracePeriodMonths: number;    // meses de gracia post-escritura
+  operationalCostsCLP: number;  // gastos operacionales del crédito (cobrados el mes de escritura)
 
   // Estructura del pie (todos en % del valor de la propiedad)
   bonoPiePercent: number;       // % que paga el desarrollador (bono)
@@ -41,14 +42,37 @@ interface SimulationParams {
 
   // Análisis
   analysisYears: number;
-  appreciationScenario1Percent: number;
-  appreciationScenario2Percent: number;
+  baseAnnualAppreciationPercent: number;  // % anual base (potencial de la zona)
+  scenario1FactorPercent: number;         // % del base para conservador (ej: 30)
+  scenario2FactorPercent: number;         // % del base para optimista (ej: 70)
   saleCostPercent: number;
   startMonth: number;
   startYear: number;
+
+  // Proyecto y cliente
+  projectName: string;
+  clientName: string;
+  clientRut: string;
+  clientEmail: string;
+  // Estacionamientos y bodega
+  parkingCount: number;      // cantidad de estacionamientos (0-3)
+  parkingValueUF: number;    // precio UF por estacionamiento
+  parkingBonoPie: boolean;   // developer cubre el pie
+  storageCount: number;      // cantidad de bodegas (0 o 1)
+  storageValueUF: number;    // precio UF de la bodega
+  storageBonoPie: boolean;   // developer cubre el pie de bodega
+  // Arriendo garantizado
+  guaranteedRentEnabled: boolean;
+  guaranteedRentMonths: number;       // duración total en meses (12,24,36,48,60)
+  guaranteedRentCLP: number;          // monto mensual garantizado bruto
+  guaranteedRentNoAdmin: boolean;     // true = sin cobro de administración
+  guaranteedRentUFAdjusted: boolean;  // true = se reajusta anualmente por UF
+  vacancyDays: number;        // días de vacancia al año (0 = sin vacancia)
+  reserveFundUF: number;      // fondo de reserva inicial del proyecto en UF
+  rentAnnualExtraPercent: number; // % extra de reajuste anual sobre UF (ej: 2 = UF+2%)
 }
 
-type Phase = 'pre-delivery' | 'grace' | 'active';
+type Phase = 'pre-delivery' | 'grace' | 'guaranteed' | 'active';
 
 interface MonthlyData {
   month: number;          // 0 = promesa/escritura (upfront), 1..N = meses
@@ -65,6 +89,10 @@ interface MonthlyData {
   // Pie
   pieCuota: number;       // cuota mensual del pie (sólo en meses 1-N)
   pieUpfront: number;     // pago al contado (sólo en mes 0)
+  operationalCosts: number; // gastos operacionales del crédito (sólo en mes de escritura)
+  corretaje: number;     // costo corretaje (50% primer mes arriendo mercado)
+  vacancyLoss: number;   // pérdida por vacancia (meses de arriendo mercado)
+  reserveFund: number;   // fondo de reserva (mes de escritura)
 
   // Dividendo
   dividend: number;
@@ -120,13 +148,23 @@ interface SimulationResult {
   firstDividendMonth: number;
   rentStartMonth: number;
   totalTableMonths: number;
+  guaranteedRentStartMonth: number;
+  guaranteedRentEndMonth: number;
   // Datos
   monthlyData: MonthlyData[]; // incluye mes 0 (upfront)
   scenario1: ScenarioResult;
   scenario2: ScenarioResult;
+  effectiveAnnual1: number;
+  effectiveAnnual2: number;
+  totalApprec1: number;
+  totalApprec2: number;
   totalNegativeCashFlow: number;
   avgMonthlyCashFlow: number;
   propertyValueCLP: number;
+  totalValueUF: number;
+  totalNetRentReceived: number;
+  totalDividendsPaid: number;
+  bonoPieUFTotal: number;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -189,13 +227,31 @@ function runSimulation(p: SimulationParams): SimulationResult {
   const loanTermMonths  = p.loanTermYears * 12;
   const ufGrowth        = Math.pow(1 + p.ufAnnualGrowthPercent / 100, 1 / 12) - 1;
 
+  // ── Totales incluyendo estacionamientos y bodega ──────────
+  const parkingTotalUF    = p.parkingCount * p.parkingValueUF;
+  const storageTotalUF    = p.storageCount * p.storageValueUF;
+  const totalValueUF      = p.propertyValueUF + parkingTotalUF + storageTotalUF;
+
   // ── Pie desglose ──────────────────────────────────────────
+  const piePct            = (100 - p.financingPercent) / 100;
   const totalPiePct       = 100 - p.financingPercent;
-  const bonoPiePct        = Math.min(p.bonoPiePercent, totalPiePct);
-  const clientPiePct      = Math.max(0, totalPiePct - bonoPiePct);
-  const loanUF            = p.propertyValueUF * (p.financingPercent / 100);
-  const bonoPieUF         = p.propertyValueUF * (bonoPiePct / 100);
-  const clientPieUF       = p.propertyValueUF * (clientPiePct / 100);
+  // Dpto
+  const bonoPieDptoPct    = Math.min(p.bonoPiePercent, totalPiePct);
+  const bonoPieDptoUF     = p.propertyValueUF * (bonoPieDptoPct / 100);
+  const dptoPieUF         = p.propertyValueUF * piePct;
+  const dptoClientPieUF   = Math.max(0, dptoPieUF - bonoPieDptoUF);
+  // Parking
+  const parkingPieUF      = parkingTotalUF * piePct;
+  const bonoPieParkingUF  = p.parkingBonoPie ? parkingTotalUF * (bonoPieDptoPct / 100) : 0;
+  const parkingClientPieUF = parkingPieUF - bonoPieParkingUF;
+  // Storage
+  const storagePieUF      = storageTotalUF * piePct;
+  const bonoPieStorageUF  = p.storageBonoPie ? storageTotalUF * (bonoPieDptoPct / 100) : 0;
+  const storageClientPieUF = storagePieUF - bonoPieStorageUF;
+  // Totales
+  const loanUF            = totalValueUF * (p.financingPercent / 100);
+  const bonoPieUF         = bonoPieDptoUF + bonoPieParkingUF + bonoPieStorageUF;
+  const clientPieUF       = dptoClientPieUF + parkingClientPieUF + storageClientPieUF;
   const clientPieUpfrontUF = clientPieUF * (p.clientPieUpfrontPct / 100);
   const clientPieCuotasUF  = clientPieUF - clientPieUpfrontUF;
   const monthlyCuotaUF    = p.clientPieCuotasCount > 0 ? clientPieCuotasUF / p.clientPieCuotasCount : 0;
@@ -207,8 +263,9 @@ function runSimulation(p: SimulationParams): SimulationResult {
   // ── Renta ─────────────────────────────────────────────────
   const managementRate    = p.managementFeePercent / 100;
   const netMonthlyRentCLP = p.monthlyRentCLP * (1 - managementRate);
-  const propertyValueCLP  = p.propertyValueUF * p.ufValueCLP;
+  const propertyValueCLP  = totalValueUF * p.ufValueCLP;
   const capRatePercent    = ((netMonthlyRentCLP * 12) / propertyValueCLP) * 100;
+  const vacancyRate    = p.vacancyDays / 365;
 
   // ── Timeline ─────────────────────────────────────────────
   // Para 'immediate': escritura = mes 0, cuotas del pie en meses 1..N
@@ -221,7 +278,10 @@ function runSimulation(p: SimulationParams): SimulationResult {
 
   // ── Mes 0: upfront + inicio ──────────────────────────────
   const ufVal0 = p.ufValueCLP;
-  const upfrontCLP = clientPieUpfrontUF * ufVal0;
+  const pieUpfront0 = clientPieUpfrontUF * ufVal0;
+  // Fondo de reserva se paga en escritura. Para entrega inmediata, escritura = mes 0.
+  const reserveFundCLP0 = preDeliveryMonths === 0 ? p.reserveFundUF * ufVal0 : 0;
+  const upfrontCLP  = pieUpfront0 + p.operationalCostsCLP + reserveFundCLP0;
 
   const month0: MonthlyData = {
     month: 0,
@@ -229,7 +289,8 @@ function runSimulation(p: SimulationParams): SimulationResult {
     dateShort: dateLabel(p.startMonth, p.startYear, true),
     ufValue: ufVal0, phase: 'pre-delivery',
     grossRent: 0, managementFee: 0, netRent: 0,
-    pieCuota: 0, pieUpfront: upfrontCLP,
+    pieCuota: 0, pieUpfront: pieUpfront0, operationalCosts: p.operationalCostsCLP,
+    corretaje: 0, vacancyLoss: 0, reserveFund: reserveFundCLP0,
     dividend: 0, interest: 0, principal: 0,
     netCashFlow: -upfrontCLP,
     cumulativeCashFlow: -upfrontCLP,
@@ -242,6 +303,12 @@ function runSimulation(p: SimulationParams): SimulationResult {
   let cumCashFlow     = -upfrontCLP;
   let mortgagePaid    = 0;
 
+  // Corretaje y vacancia
+  const gRentStart_outer = p.guaranteedRentEnabled ? escrituraMonth + 2 : 9999;
+  const gRentEnd_outer   = p.guaranteedRentEnabled ? gRentStart_outer + p.guaranteedRentMonths - 1 : -1;
+  const corretajeMonth   = p.guaranteedRentEnabled ? gRentEnd_outer + 1 : rentStartMonth;
+  const reserveFundMonth = preDeliveryMonths > 0 ? preDeliveryMonths : -1; // escritura futura
+
   for (let m = 1; m <= totalTableMonths; m++) {
     const { month: cm, year: cy } = addMonths(p.startMonth, p.startYear, m);
     const ufVal = p.ufValueCLP * Math.pow(1 + ufGrowth, m);
@@ -249,12 +316,42 @@ function runSimulation(p: SimulationParams): SimulationResult {
     // Fase
     const isPreDelivery = m <= preDeliveryMonths;
     const isGrace       = !isPreDelivery && m < firstDividendMonth;
-    const phase: Phase  = isPreDelivery ? 'pre-delivery' : isGrace ? 'grace' : 'active';
+    const isGuaranteedPhase = !isPreDelivery && !isGrace && p.guaranteedRentEnabled
+      && m >= (escrituraMonth + 2) && m <= (escrituraMonth + 2 + p.guaranteedRentMonths - 1);
+    const phase: Phase  = isPreDelivery ? 'pre-delivery' : isGrace ? 'grace' : isGuaranteedPhase ? 'guaranteed' : 'active';
 
-    // Arriendo (disponible desde rentStartMonth)
-    const grossRent     = m >= rentStartMonth ? p.monthlyRentCLP : 0;
-    const managementFee = grossRent * managementRate;
-    const netRent       = grossRent - managementFee;
+    // Arriendo (garantizado o mercado)
+    const gRentStart = p.guaranteedRentEnabled ? escrituraMonth + 2 : 9999;
+    const gRentEnd   = p.guaranteedRentEnabled ? gRentStart + p.guaranteedRentMonths - 1 : -1;
+    const isGuaranteed = p.guaranteedRentEnabled && m >= gRentStart && m <= gRentEnd;
+    const marketRentStart = p.guaranteedRentEnabled ? gRentEnd + 1 : rentStartMonth;
+    let grossRent = 0, managementFee = 0, netRent = 0;
+    if (isGuaranteed) {
+      const yearsFromGStart = Math.floor((m - gRentStart) / 12);
+      grossRent = p.guaranteedRentUFAdjusted && yearsFromGStart > 0
+        ? p.guaranteedRentCLP * Math.pow(1 + p.ufAnnualGrowthPercent / 100, yearsFromGStart)
+        : p.guaranteedRentCLP;
+      managementFee = p.guaranteedRentNoAdmin ? 0 : grossRent * managementRate;
+      netRent = grossRent - managementFee;
+    } else if (m >= marketRentStart) {
+      const yearsFromMarket = Math.floor((m - marketRentStart) / 12);
+      const rentGrowthFactor = yearsFromMarket > 0
+        ? Math.pow(1 + (p.ufAnnualGrowthPercent + p.rentAnnualExtraPercent) / 100, yearsFromMarket)
+        : 1;
+      grossRent = p.monthlyRentCLP * rentGrowthFactor;
+      managementFee = grossRent * managementRate;
+      netRent = grossRent - managementFee;
+    }
+
+    // Vacancia: solo en meses de arriendo mercado
+    const isMarketRent = m >= marketRentStart;
+    const vacancyLoss  = isMarketRent && p.vacancyDays > 0 ? grossRent * vacancyRate : 0;
+
+    // Corretaje: 50% del arriendo bruto, solo el primer mes de arriendo mercado
+    const corretaje = m === corretajeMonth ? p.monthlyRentCLP * 0.5 : 0;
+
+    // Fondo de reserva: solo en mes de escritura futura
+    const reserveFund = m === reserveFundMonth ? p.reserveFundUF * ufVal : 0;
 
     // Cuota pie (sólo en meses 1..clientPieCuotasCount)
     const pieCuota = m >= 1 && m <= p.clientPieCuotasCount ? monthlyCuotaUF * ufVal : 0;
@@ -270,18 +367,19 @@ function runSimulation(p: SimulationParams): SimulationResult {
       mortgagePaid++;
     }
 
-    const netCashFlow = netRent - pieCuota - dividend;
+    const netCashFlow = netRent - vacancyLoss - corretaje - reserveFund - pieCuota - dividend;
     cumCashFlow += netCashFlow;
 
     const outstandingBalanceUF  = calcBalance(loanUF, p.annualRatePercent, loanTermMonths, mortgagePaid);
     const outstandingBalanceCLP = outstandingBalanceUF * ufVal;
-    const propValCLP            = p.propertyValueUF * ufVal;
+    const propValCLP            = totalValueUF * ufVal;
 
     data.push({
       month: m, date: dateLabel(cm, cy), dateShort: dateLabel(cm, cy, true),
       ufValue: ufVal, phase,
       grossRent, managementFee, netRent,
-      pieCuota, pieUpfront: 0,
+      pieCuota, pieUpfront: 0, operationalCosts: 0,
+      corretaje, vacancyLoss, reserveFund,
       dividend, interest, principal,
       netCashFlow, cumulativeCashFlow: cumCashFlow,
       outstandingBalanceUF, outstandingBalanceCLP,
@@ -293,7 +391,7 @@ function runSimulation(p: SimulationParams): SimulationResult {
   // ── Escenarios de venta ──────────────────────────────────
   function calcScenario(aprecPct: number): ScenarioResult {
     const last = data[data.length - 1];
-    const salePriceUF       = p.propertyValueUF * (1 + aprecPct / 100);
+    const salePriceUF       = totalValueUF * (1 + aprecPct / 100);
     const salePriceCLP      = salePriceUF * last.ufValue;
     const grossEquityCLP    = salePriceCLP - last.outstandingBalanceCLP;
     const saleCostsCLP      = salePriceCLP * (p.saleCostPercent / 100);
@@ -318,8 +416,18 @@ function runSimulation(p: SimulationParams): SimulationResult {
     };
   }
 
-  const totalNeg = data.reduce((s, d) => s + (d.netCashFlow < 0 ? Math.abs(d.netCashFlow) : 0), 0);
-  const avgFlow  = data.slice(1).reduce((s, d) => s + d.netCashFlow, 0) / totalTableMonths;
+  const totalNeg             = data.reduce((s, d) => s + (d.netCashFlow < 0 ? Math.abs(d.netCashFlow) : 0), 0);
+  const avgFlow              = data.slice(1).reduce((s, d) => s + d.netCashFlow, 0) / totalTableMonths;
+  const totalNetRentReceived = data.reduce((s, d) => s + d.netRent, 0);
+  const totalDividendsPaid   = data.reduce((s, d) => s + d.dividend, 0);
+
+  const gRentStartGlobal = p.guaranteedRentEnabled ? (preDeliveryMonths + 2) : 9999;
+  const gRentEndGlobal   = p.guaranteedRentEnabled ? gRentStartGlobal + p.guaranteedRentMonths - 1 : -1;
+
+  const eff1 = p.baseAnnualAppreciationPercent * p.scenario1FactorPercent / 100;
+  const eff2 = p.baseAnnualAppreciationPercent * p.scenario2FactorPercent / 100;
+  const totalApprec1 = (Math.pow(1 + eff1 / 100, p.analysisYears) - 1) * 100;
+  const totalApprec2 = (Math.pow(1 + eff2 / 100, p.analysisYears) - 1) * 100;
 
   return {
     params: p, totalPiePct, bonoPieUF, clientPieUF,
@@ -327,12 +435,18 @@ function runSimulation(p: SimulationParams): SimulationResult {
     loanUF, monthlyPaymentUF, monthlyPaymentCLP,
     netMonthlyRentCLP, capRatePercent,
     escrituraMonth, firstDividendMonth, rentStartMonth, totalTableMonths,
+    guaranteedRentStartMonth: gRentStartGlobal,
+    guaranteedRentEndMonth: gRentEndGlobal,
     monthlyData: data,
-    scenario1: calcScenario(p.appreciationScenario1Percent),
-    scenario2: calcScenario(p.appreciationScenario2Percent),
+    scenario1: calcScenario(totalApprec1),
+    scenario2: calcScenario(totalApprec2),
+    effectiveAnnual1: eff1, effectiveAnnual2: eff2,
+    totalApprec1, totalApprec2,
     totalNegativeCashFlow: totalNeg,
     avgMonthlyCashFlow: avgFlow,
     propertyValueCLP,
+    totalValueUF, totalNetRentReceived, totalDividendsPaid,
+    bonoPieUFTotal: bonoPieUF,
   };
 }
 
@@ -343,14 +457,28 @@ const DEFAULTS: SimulationParams = {
   propertyValueUF: 3000, commune: 'Cerrillos',
   ufValueCLP: 38500, ufAnnualGrowthPercent: 3.5,
   deliveryType: 'immediate', constructionMonths: 24,
-  financingPercent: 90, annualRatePercent: 4.0, loanTermYears: 30, gracePeriodMonths: 3,
+  financingPercent: 90, annualRatePercent: 4.0, loanTermYears: 30, gracePeriodMonths: 3, operationalCostsCLP: 0,
   bonoPiePercent: 10,
   clientPieUpfrontPct: 0,   // con bono pie = 10%, cliente no paga nada
   clientPieCuotasCount: 24,
   monthlyRentCLP: 450000, managementFeePercent: 7,
   analysisYears: 5,
-  appreciationScenario1Percent: 30, appreciationScenario2Percent: 70,
+  baseAnnualAppreciationPercent: 5,
+  scenario1FactorPercent: 30,
+  scenario2FactorPercent: 70,
   saleCostPercent: 2.5, startMonth: 2, startYear: 2026,
+  projectName: '',
+  clientName: '', clientRut: '', clientEmail: '',
+  parkingCount: 0, parkingValueUF: 15, parkingBonoPie: true,
+  storageCount: 0, storageValueUF: 10, storageBonoPie: true,
+  guaranteedRentEnabled: false,
+  guaranteedRentMonths: 24,
+  guaranteedRentCLP: 450000,
+  guaranteedRentNoAdmin: true,
+  guaranteedRentUFAdjusted: false,
+  vacancyDays: 0,
+  reserveFundUF: 0,
+  rentAnnualExtraPercent: 2,
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -372,7 +500,7 @@ function KpiCard({ label, value, sub, type = 'default', icon }: {
       <p style={{ fontSize: 10, fontWeight: 600, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>
         {icon && <span style={{ marginRight: 4 }}>{icon}</span>}{label}
       </p>
-      <p style={{ fontSize: 17, fontWeight: 800, color: clr[type], lineHeight: 1.2 }}>{value}</p>
+      <p style={{ fontSize: 17, fontWeight: 800, color: clr[type], lineHeight: 1.2, whiteSpace: 'nowrap' }}>{value}</p>
       {sub && <p style={{ fontSize: 10, color: '#93b4d4', marginTop: 1 }}>{sub}</p>}
     </div>
   );
@@ -394,6 +522,36 @@ function Slider({ label, value, min, max, step, display, onChange }: {
   );
 }
 
+function NumberInput({ label, value, onChange, suffix, decimals = 0 }: {
+  label: string; value: number; onChange: (v: number) => void; suffix?: string; decimals?: number;
+}) {
+  const fmt = (n: number) => n.toLocaleString('es-CL', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  const [raw, setRaw] = React.useState(fmt(value));
+  const [focused, setFocused] = React.useState(false);
+  React.useEffect(() => { if (!focused) setRaw(fmt(value)); }, [value, focused]);
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={{ fontSize: 11, color: '#4a7abf' }}>{label}</span>
+        {suffix && <span style={{ fontSize: 11, color: '#1d4ed8', fontWeight: 700 }}>{suffix}</span>}
+      </div>
+      <input
+        style={INPUT_S}
+        value={raw}
+        onFocus={() => { setFocused(true); setRaw(String(value)); }}
+        onChange={e => {
+          const s = e.target.value.replace(/[^\d]/g, '');
+          setRaw(s);
+          const n = parseInt(s, 10);
+          if (!isNaN(n)) onChange(n);
+        }}
+        onBlur={() => { setFocused(false); setRaw(fmt(value)); }}
+        inputMode="numeric"
+      />
+    </div>
+  );
+}
+
 type TTP = { name: string; value: number; color: string };
 function ChartTip({ active, payload, label }: { active?: boolean; payload?: TTP[]; label?: string }) {
   if (!active || !payload?.length) return null;
@@ -410,84 +568,217 @@ function ChartTip({ active, payload, label }: { active?: boolean; payload?: TTP[
   );
 }
 
-function ScenariosComparison({ R, p }: { R: SimulationResult; p: SimulationParams }) {
-  const escrituraMes = addMonths(p.startMonth, p.startYear,
-    p.deliveryType === 'future' ? p.constructionMonths : 0);
-  const { month: sm, year: sy } = addMonths(escrituraMes.month, escrituraMes.year, p.analysisYears * 12);
-  const ventaLabel = `Venta ${ML[sm]} ${sy}`;
+const ASESORES = ['Diego Sánchez', 'Cristóbal Sepúlveda', 'Matías Bertelsen'];
 
-  const s1 = R.scenario1;
-  const s2 = R.scenario2;
+function SendModal({ p, getShareLink, onClose }: { p: SimulationParams; getShareLink: (mode: 'static' | 'dynamic') => string; onClose: () => void }) {
+  const [step, setStep] = React.useState<'mode' | 'send'>('mode');
+  const [mode, setMode] = React.useState<'static' | 'dynamic'>('static');
+  const [to, setTo] = React.useState(p.clientEmail || '');
+  const [asesor, setAsesor] = React.useState('');
+  const [sending, setSending] = React.useState(false);
+  const [sent, setSent] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [copied, setCopied] = React.useState(false);
+  const shareLink = getShareLink(mode);
 
-  type RowDef = { label: string; v1: string; v2: string; bold?: boolean; section?: boolean };
-  const rows: RowDef[] = [
-    { label: 'Plusvalía', v1: `+${p.appreciationScenario1Percent}%`, v2: `+${p.appreciationScenario2Percent}%`, bold: true },
-    { label: 'Precio de venta', v1: fUF(s1.salePriceUF, 0), v2: fUF(s2.salePriceUF, 0) },
-    { label: '', v1: fCLP(s1.salePriceCLP, false), v2: fCLP(s2.salePriceCLP, false) },
-    { label: 'Deuda pendiente', v1: fUF(s1.outstandingBalanceUF, 0), v2: fUF(s2.outstandingBalanceUF, 0) },
-    { label: 'Equity bruto', v1: fCLP(s1.grossEquityCLP, false), v2: fCLP(s2.grossEquityCLP, false) },
-    { label: `Gastos venta (${p.saleCostPercent}%)`, v1: `-${fCLP(s1.saleCostsCLP, false)}`, v2: `-${fCLP(s2.saleCostsCLP, false)}` },
-    { label: 'Patrimonio neto venta', v1: fCLP(s1.netEquityCLP, false), v2: fCLP(s2.netEquityCLP, false), bold: true },
-    { label: 'Flujo acumulado', v1: fCLP(s1.cumulativeCashFlow, false), v2: fCLP(s2.cumulativeCashFlow, false) },
-    { label: 'Total invertido', v1: `-${fCLP(s1.totalInvested, false)}`, v2: `-${fCLP(s2.totalInvested, false)}` },
-    { label: 'Retorno total neto', v1: fCLP(s1.totalReturn, false), v2: fCLP(s2.totalReturn, false), bold: true },
-    { label: 'ROI total', v1: fPct(s1.roiPercent, 0), v2: fPct(s2.roiPercent, 0), bold: true },
-    { label: 'ROI anualizado', v1: fPct(s1.annualizedRoiPercent, 1), v2: fPct(s2.annualizedRoiPercent, 1) },
-    { label: 'Equity múltiplo', v1: `${isFinite(s1.equityMultiple) ? s1.equityMultiple.toFixed(1) : '∞'}x`, v2: `${isFinite(s2.equityMultiple) ? s2.equityMultiple.toFixed(1) : '∞'}x` },
-  ];
+  const handleCopy = () => {
+    navigator.clipboard.writeText(shareLink);
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSend = async () => {
+    if (!to) return;
+    setSending(true); setError('');
+    try {
+      const res = await fetch('/api/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, clientName: p.clientName, clientRut: p.clientRut, shareLink, mode, projectName: p.projectName, asesorName: asesor, commune: p.commune }),
+      });
+      if (!res.ok) throw new Error('Error');
+      setSent(true);
+    } catch {
+      setError('No se pudo enviar. Revisa el email e intenta de nuevo.');
+    } finally { setSending(false); }
+  };
 
   return (
-    <div style={{ ...CARD, overflow: 'hidden' }}>
-      {/* Header */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', background: '#1d4ed8', borderBottom: '2px solid #1e40af' }}>
-        <div style={{ padding: '10px 14px' }}>
-          <p style={{ fontSize: 10, fontWeight: 700, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Comparación de Escenarios</p>
-          <p style={{ fontSize: 10, color: '#bfdbfe' }}>{ventaLabel}</p>
+    <div style={{ position: 'fixed', inset: 0, background: '#00000070', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 520, boxShadow: '0 24px 80px #0004', overflow: 'hidden' }}>
+        {/* Modal header */}
+        <div style={{ background: 'linear-gradient(135deg, #1d4ed8, #7c3aed)', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 2 }}>📧 Enviar simulación</h2>
+            {p.clientName && <p style={{ fontSize: 12, color: '#c4b5fd' }}>Para: <strong style={{ color: '#fff' }}>{p.clientName}</strong>{p.clientRut ? ` · ${p.clientRut}` : ''}</p>}
+          </div>
+          <button onClick={onClose} style={{ background: '#ffffff20', border: 'none', cursor: 'pointer', width: 32, height: 32, borderRadius: 8, color: '#fff', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
-        {[
-          { label: 'Escenario Conservador', pct: p.appreciationScenario1Percent, value: fCLP(s1.netEquityCLP, false), color: '#60a5fa' },
-          { label: 'Escenario Optimista',   pct: p.appreciationScenario2Percent, value: fCLP(s2.netEquityCLP, false), color: '#34d399' },
-        ].map(({ label, pct, value, color }) => (
-          <div key={label} style={{ padding: '10px 14px', borderLeft: '1px solid #1e40af', textAlign: 'right' }}>
-            <p style={{ fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</p>
-            <p style={{ fontSize: 10, color: '#93c5fd' }}>+{pct}% plusvalía</p>
-            <p style={{ fontSize: 20, fontWeight: 900, color, lineHeight: 1.2 }}>{value}</p>
-            <p style={{ fontSize: 9, color: '#93c5fd' }}>patrimonio neto</p>
-          </div>
-        ))}
-      </div>
 
-      {/* Rows */}
-      {rows.map((row, i) => (
-        <div key={i} style={{
-          display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
-          background: row.bold ? '#eff6ff' : i % 2 === 0 ? '#fff' : '#f8fbff',
-          borderBottom: '1px solid #dbeafe',
-        }}>
-          <div style={{ padding: '6px 14px', fontSize: 11, color: '#6b93c4', fontWeight: row.bold ? 700 : 400 }}>
-            {row.label}
-          </div>
-          {[row.v1, row.v2].map((v, j) => {
-            const isNeg = v.startsWith('-');
-            const isBig = row.bold && !v.startsWith('+') && !v.startsWith('-') && !v.endsWith('x') && !v.endsWith('%');
-            const color = row.label === 'Plusvalía' ? (j === 0 ? '#1d4ed8' : '#0284c7')
-              : isNeg ? '#dc2626'
-              : isBig ? (j === 0 ? '#1d4ed8' : '#0284c7')
-              : row.bold ? '#0f2957'
-              : '#334d6e';
-            return (
-              <div key={j} style={{
-                padding: '6px 14px', fontSize: 11, fontFamily: 'monospace',
-                fontWeight: row.bold ? 700 : 500,
-                color, textAlign: 'right',
-                borderLeft: '1px solid #dbeafe',
-              }}>
-                {v}
+        <div style={{ padding: 24 }}>
+          {step === 'mode' ? (
+            <>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#0f2957', marginBottom: 4 }}>
+                ¿Cómo quieres que {p.clientName ? <strong>{p.clientName}</strong> : 'tu cliente'} vea la simulación?
+              </p>
+              <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 16 }}>
+                Tú eliges — el cliente solo recibirá el link según lo que decidas aquí.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+                {([
+                  {
+                    m: 'static' as const, icon: '📋', title: 'Solo visualización',
+                    badge: 'Recomendado', badgeColor: '#1d4ed8',
+                    desc: 'El cliente ve la propuesta limpia y profesional, sin poder tocar nada. Perfecto para una presentación formal.',
+                  },
+                  {
+                    m: 'dynamic' as const, icon: '🎮', title: 'Interactiva',
+                    badge: 'El cliente puede explorar', badgeColor: '#7c3aed',
+                    desc: 'El cliente puede mover parámetros (tasa, años, arriendo…) y ver cómo cambian los números. Genera más conversación.',
+                  },
+                ]).map(({ m, icon, title, badge, badgeColor, desc }) => (
+                  <button key={m} onClick={() => setMode(m)} style={{
+                    padding: 16, borderRadius: 14, border: `2px solid ${mode === m ? badgeColor : '#dbeafe'}`,
+                    background: mode === m ? (m === 'static' ? '#eff6ff' : '#f5f3ff') : '#fff',
+                    cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+                  }}>
+                    <p style={{ fontSize: 24, marginBottom: 8 }}>{icon}</p>
+                    <p style={{ fontSize: 12, fontWeight: 800, color: mode === m ? badgeColor : '#0f2957', marginBottom: 4 }}>{title}</p>
+                    <span style={{ fontSize: 9, fontWeight: 700, background: mode === m ? badgeColor : '#dbeafe', color: mode === m ? '#fff' : '#6b93c4', padding: '2px 7px', borderRadius: 20, marginBottom: 8, display: 'inline-block' }}>{badge}</span>
+                    <p style={{ fontSize: 10, color: '#93b4d4', lineHeight: 1.5, marginTop: 6 }}>{desc}</p>
+                  </button>
+                ))}
               </div>
-            );
-          })}
+              <button onClick={() => setStep('send')} style={{
+                width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', cursor: 'pointer',
+                background: 'linear-gradient(135deg, #1d4ed8, #7c3aed)', color: '#fff', fontSize: 13, fontWeight: 700,
+              }}>
+                Siguiente: ingresar email →
+              </button>
+            </>
+          ) : sent ? (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <p style={{ fontSize: 40, marginBottom: 12 }}>✅</p>
+              <p style={{ fontSize: 16, fontWeight: 800, color: '#15803d', marginBottom: 6 }}>¡Simulación enviada!</p>
+              <p style={{ fontSize: 12, color: '#6b93c4', marginBottom: 20 }}>
+                {p.clientName ? <><strong>{p.clientName}</strong> recibirá</> : 'Se envió'} la versión {mode === 'static' ? 'de solo visualización 📋' : 'interactiva 🎮'} a <strong>{to}</strong>
+              </p>
+              <button onClick={onClose} style={{ padding: '10px 28px', borderRadius: 10, border: 'none', cursor: 'pointer', background: '#1d4ed8', color: '#fff', fontSize: 12, fontWeight: 700 }}>
+                Cerrar
+              </button>
+            </div>
+          ) : (
+            <>
+              <button onClick={() => setStep('mode')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#6b93c4', marginBottom: 16, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                ← Cambiar tipo ({mode === 'static' ? '📋 Solo visualización' : '🎮 Interactiva'})
+              </button>
+              <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 6 }}>Link único generado para este cliente:</p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+                <input readOnly value={shareLink} style={{ ...INPUT_S, flex: 1, fontSize: 10, fontFamily: 'monospace' }} onClick={e => (e.target as HTMLInputElement).select()} />
+                <button onClick={handleCopy} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #bfdbfe', background: copied ? '#f0fdf4' : '#eff6ff', color: copied ? '#15803d' : '#1d4ed8', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                  {copied ? '✓ Copiado' : 'Copiar'}
+                </button>
+              </div>
+              <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 6 }}>Asesor que envía:</p>
+              <select value={asesor} onChange={e => setAsesor(e.target.value)} style={{ ...INPUT_S, marginBottom: 14 }}>
+                <option value="">— Seleccionar asesor —</option>
+                {ASESORES.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+              <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 6 }}>Email del cliente:</p>
+              <input type="email" value={to} onChange={e => setTo(e.target.value)} style={{ ...INPUT_S, marginBottom: 16 }} placeholder="email@cliente.com" />
+              <div style={{ background: '#f8fbff', border: '1px solid #dbeafe', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 11, color: '#334d6e', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <span>ℹ️</span>
+                <span>
+                  {mode === 'static'
+                    ? 'El cliente verá la propuesta tal como la configuraste. No podrá modificar nada.'
+                    : 'El cliente podrá cambiar parámetros y explorar escenarios. Siempre verá tu configuración inicial.'}
+                </span>
+              </div>
+              <button onClick={handleSend} disabled={!to || sending} style={{
+                width: '100%', padding: '13px 0', borderRadius: 12, border: 'none',
+                cursor: to && !sending ? 'pointer' : 'not-allowed',
+                background: to && !sending ? 'linear-gradient(135deg, #1d4ed8, #7c3aed)' : '#c4b5fd',
+                color: '#fff', fontSize: 13, fontWeight: 700,
+              }}>
+                {sending ? '⏳ Enviando...' : `📧 Enviar simulación${to ? ` a ${to}` : ''}`}
+              </button>
+              {error && <p style={{ fontSize: 11, color: '#dc2626', marginTop: 10, textAlign: 'center' }}>{error}</p>}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompactScenarios({ R, p }: { R: SimulationResult; p: SimulationParams }) {
+  const escrituraMes = addMonths(p.startMonth, p.startYear, p.deliveryType === 'future' ? p.constructionMonths : 0);
+  const { month: sm, year: sy } = addMonths(escrituraMes.month, escrituraMes.year, p.analysisYears * 12);
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      {([
+        { label: 'Escenario Conservador', s: R.scenario1, ann: R.effectiveAnnual1, total: R.totalApprec1, color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+        { label: 'Escenario Optimista',   s: R.scenario2, ann: R.effectiveAnnual2, total: R.totalApprec2, color: '#15803d', bg: '#f0fdf4', border: '#86efac' },
+      ] as const).map(({ label, s, ann, total, color, bg, border }) => (
+        <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 12, padding: '12px 14px' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</p>
+          <p style={{ fontSize: 10, color: '#6b93c4', marginBottom: 8 }}>
+            {fPct(ann, 1)}/año · +{fPct(total, 1)} en {p.analysisYears}a · Venta {ML[sm]} {sy}
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            {[
+              ['Precio venta', fUF(s.salePriceUF, 0)],
+              ['Patrimonio neto', fCLP(s.netEquityCLP, false)],
+              ['ROI total', fPct(s.roiPercent, 0)],
+              ['ROI anualizado', fPct(s.annualizedRoiPercent, 1)],
+              ['Equity múltiplo', `${isFinite(s.equityMultiple) ? s.equityMultiple.toFixed(1) : '∞'}x`],
+              ['Deuda pendiente', fUF(s.outstandingBalanceUF, 0)],
+            ].map(([lbl, val]) => (
+              <div key={lbl as string}>
+                <p style={{ fontSize: 9, color: '#6b93c4', marginBottom: 1 }}>{lbl}</p>
+                <p style={{ fontSize: 11, fontWeight: 700, color, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{val}</p>
+              </div>
+            ))}
+          </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function InvestmentSummary({ R, p }: { R: SimulationResult; p: SimulationParams }) {
+  const totalRentCLP    = R.totalNetRentReceived;
+  const totalDivCLP     = R.totalDividendsPaid;
+  const totalInvested   = R.totalNegativeCashFlow;
+  const lastCum         = R.monthlyData[R.monthlyData.length - 1].cumulativeCashFlow;
+
+  return (
+    <div style={{ ...CARD, padding: '14px 18px', marginBottom: 0 }}>
+      <p style={{ fontSize: 10, fontWeight: 700, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+        Resumen del período · {p.analysisYears} años
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+        <div>
+          <p style={{ fontSize: 10, color: '#6b93c4', marginBottom: 3 }}>💵 Total que pusiste</p>
+          <p style={{ fontSize: 16, fontWeight: 800, color: '#dc2626', whiteSpace: 'nowrap' }}>{fCLP(totalInvested, false)}</p>
+          <p style={{ fontSize: 9, color: '#93b4d4' }}>Pie + top-ups del período</p>
+        </div>
+        <div>
+          <p style={{ fontSize: 10, color: '#6b93c4', marginBottom: 3 }}>🏠 Recibiste en arriendos</p>
+          <p style={{ fontSize: 16, fontWeight: 800, color: '#15803d', whiteSpace: 'nowrap' }}>{fCLP(totalRentCLP, false)}</p>
+          <p style={{ fontSize: 9, color: '#93b4d4' }}>Renta neta acumulada</p>
+        </div>
+        <div>
+          <p style={{ fontSize: 10, color: '#6b93c4', marginBottom: 3 }}>🏦 Pagaste en dividendos</p>
+          <p style={{ fontSize: 16, fontWeight: 800, color: '#dc2626', whiteSpace: 'nowrap' }}>{fCLP(totalDivCLP, false)}</p>
+          <p style={{ fontSize: 9, color: '#93b4d4' }}>Total hipoteca período</p>
+        </div>
+        <div>
+          <p style={{ fontSize: 10, color: '#6b93c4', marginBottom: 3 }}>📊 Flujo neto acumulado</p>
+          <p style={{ fontSize: 16, fontWeight: 800, color: lastCum >= 0 ? '#15803d' : '#dc2626', whiteSpace: 'nowrap' }}>{fCLP(lastCum, false)}</p>
+          <p style={{ fontSize: 9, color: '#93b4d4' }}>Sin contar plusvalía</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -499,22 +790,29 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
   const COL_W = 92;
   const LABEL_W = 210;
 
+  const lastMonth = R.totalTableMonths;
+
   // Colores por fase
   function colBg(d: MonthlyData) {
-    if (d.month === 0) return '#faf5ff';           // promesa
+    if (d.month === lastMonth) return '#f5f3ff';     // venta
+    if (d.month === 0) return '#faf5ff';              // promesa
     if (d.phase === 'pre-delivery') return '#fff7ed'; // construcción
     if (d.phase === 'grace')        return '#f0fdf4'; // gracia
+    if (d.phase === 'guaranteed')   return '#dcfce7'; // garantizado
     return '#fff';
   }
   function headerBg(d: MonthlyData) {
+    if (d.month === lastMonth) return '#6d28d9';
     if (d.month === 0) return '#7c3aed';
     if (d.phase === 'pre-delivery') return '#d97706';
     if (d.phase === 'grace')        return '#16a34a';
+    if (d.phase === 'guaranteed')   return '#15803d';
     return '#1d4ed8';
   }
 
   // Badge de fase en header
   function phaseBadge(d: MonthlyData) {
+    if (d.month === lastMonth) return 'Venta';
     if (d.month === 0) return 'Promesa';
     if (d.phase === 'pre-delivery') return 'Obra';
     if (d.phase === 'grace')        return 'Gracia';
@@ -525,19 +823,24 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
     label: string;
     type: 'section' | 'income' | 'expense' | 'subtotal' | 'result' | 'balance' | 'info';
     fn: (d: MonthlyData) => number | string | null;
+    tooltipFn?: (d: MonthlyData) => string | null;
   };
 
   const rows: RowDef[] = [
     { label: 'INGRESOS', type: 'section', fn: () => null },
-    { label: 'Arriendo bruto', type: 'income', fn: d => d.grossRent },
+    { label: `Arriendo bruto (reaj. UF+${p.rentAnnualExtraPercent}%/año)`, type: 'income', fn: d => d.grossRent },
 
     { label: 'GASTOS OPERACIONALES', type: 'section', fn: () => null },
     { label: `Adm. inmobiliaria (${p.managementFeePercent}%)`, type: 'expense', fn: d => -d.managementFee },
-    { label: 'Arriendo neto', type: 'subtotal', fn: d => d.netRent },
+    { label: `Vacancia (${p.vacancyDays} días/año)`, type: 'expense', fn: d => d.vacancyLoss > 0 ? -d.vacancyLoss : null },
+    { label: 'Corretaje (50% 1er arriendo)', type: 'expense', fn: d => d.corretaje > 0 ? -d.corretaje : null },
+    { label: 'Arriendo neto', type: 'subtotal', fn: d => d.netRent - d.vacancyLoss - d.corretaje },
 
     { label: 'INVERSIÓN PIE', type: 'section', fn: () => null },
     { label: 'Pie up front (contado)', type: 'expense', fn: d => d.pieUpfront > 0 ? -d.pieUpfront : null },
     { label: `Cuota pie (${p.clientPieCuotasCount} cuotas)`, type: 'expense', fn: d => d.pieCuota > 0 ? -d.pieCuota : null },
+    { label: 'Gastos operacionales crédito', type: 'expense', fn: d => d.operationalCosts > 0 ? -d.operationalCosts : null },
+    { label: 'Fondo de reserva inicial', type: 'expense', fn: d => d.reserveFund > 0 ? -d.reserveFund : null },
 
     { label: 'DIVIDENDO HIPOTECARIO', type: 'section', fn: () => null },
     { label: 'Fase', type: 'info',
@@ -548,9 +851,10 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
         return null;
       }
     },
-    { label: 'Interés bancario', type: 'expense', fn: d => d.interest > 0 ? -d.interest : null },
-    { label: 'Amortización capital', type: 'expense', fn: d => d.principal > 0 ? -d.principal : null },
-    { label: 'Dividendo total', type: 'expense', fn: d => d.dividend > 0 ? -d.dividend : null },
+    { label: 'Dividendo total', type: 'expense', fn: d => d.dividend > 0 ? -d.dividend : null,
+      tooltipFn: d => d.dividend > 0
+        ? `Interés: ${fCLP(d.interest, false)}\nAmortización: ${fCLP(d.principal, false)}`
+        : null },
 
     { label: 'FLUJO MENSUAL', type: 'section', fn: () => null },
     { label: 'Flujo neto del mes', type: 'result', fn: d => d.netCashFlow },
@@ -561,6 +865,17 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
     { label: 'Saldo deuda (UF)', type: 'balance', fn: d => d.outstandingBalanceUF },
     { label: 'Saldo deuda (CLP)', type: 'balance', fn: d => d.outstandingBalanceCLP },
     { label: 'Patrimonio neto', type: 'balance', fn: d => d.equityCLP },
+
+    { label: 'EVENTO DE VENTA', type: 'section', fn: () => null },
+    { label: 'Precio venta (conservador)', type: 'income', fn: d => d.month === lastMonth ? R.scenario1.salePriceCLP : null },
+    { label: 'Precio venta (optimista)', type: 'income', fn: d => d.month === lastMonth ? R.scenario2.salePriceCLP : null },
+    { label: 'Saldo deuda a cancelar', type: 'expense', fn: d => d.month === lastMonth ? -d.outstandingBalanceCLP : null },
+    { label: `Patrimonio neto cons. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal', fn: d => d.month === lastMonth ? R.scenario1.netEquityCLP : null },
+    { label: `Patrimonio neto opt. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal', fn: d => d.month === lastMonth ? R.scenario2.netEquityCLP : null },
+
+    { label: 'GANANCIA TOTAL CON VENTA', type: 'section', fn: () => null },
+    { label: 'Resultado final (conservador)', type: 'result', fn: d => d.month === lastMonth ? R.scenario1.totalReturn : null },
+    { label: 'Resultado final (optimista)', type: 'result', fn: d => d.month === lastMonth ? R.scenario2.totalReturn : null },
   ];
 
   function formatVal(row: RowDef, raw: number | string | null, d: MonthlyData): string {
@@ -585,8 +900,7 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
 
   return (
     <div style={{ overflowX: 'auto', borderRadius: 14, border: '1px solid #bfdbfe', background: '#fff' }}>
-      <div style={{ minWidth: LABEL_W + COL_W * data.length }}>
-        <table className="flow-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+      <table className="flow-table" style={{ width: '100%', minWidth: LABEL_W + COL_W * data.length, borderCollapse: 'separate', borderSpacing: 0, fontSize: 11 }}>
           <thead>
             {/* Row 1: fase badge */}
             <tr>
@@ -662,14 +976,16 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
                     const display = formatVal(row, raw, d);
                     const color = cellColor(row, raw);
                     const bg = isSection ? rowBg : colBg(d);
+                    const tooltip = row.tooltipFn ? row.tooltipFn(d) : null;
                     return (
-                      <td key={d.month} style={{
+                      <td key={d.month} title={tooltip ?? undefined} style={{
                         textAlign: 'right', padding: '4px 8px',
                         fontFamily: isSection ? 'inherit' : 'monospace',
                         fontWeight: row.type === 'result' ? 700 : 500,
                         fontSize: isSection ? 0 : 11,
                         color, background: bg, whiteSpace: 'nowrap',
                         borderLeft: '1px solid #f0f4ff',
+                        cursor: tooltip ? 'help' : 'default',
                       }}>
                         {row.type === 'info'
                           ? (typeof raw === 'string'
@@ -683,21 +999,114 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
               );
             })}
           </tbody>
-        </table>
-      </div>
+      </table>
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────
+// AUTH
+// ─────────────────────────────────────────────────────────────
+const AUTH_USERS: Record<string, { role: 'admin' | 'asesor' }> = {
+  'proppi:20262026': { role: 'asesor' },
+  'admin:admin':     { role: 'admin'  },
+};
+const SESSION_KEY = 'cotiz_session';
+
+const LOGIN_INPUT: React.CSSProperties = {
+  background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: 8,
+  padding: '8px 10px', fontSize: 13, color: '#0f2957', outline: 'none', width: '100%',
+};
 
 // ─────────────────────────────────────────────────────────────
 // MAIN
 // ─────────────────────────────────────────────────────────────
 export default function Home() {
   const [p, setP] = useState<SimulationParams>(DEFAULTS);
-  const [tab, setTab] = useState<'prop' | 'credit' | 'pie' | 'rent' | 'exit'>('credit');
+  const [tab, setTab] = useState<'prop' | 'credit' | 'pie' | 'rent' | 'exit' | 'cliente'>('credit');
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [showMap, setShowMap]             = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [isStaticView, setIsStaticView] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
+
+  // Auth
+  const [authed, setAuthed]         = useState(false);
+  const [isClientLink, setIsClientLink] = useState(false);
+  const [loginUser, setLoginUser]   = useState('');
+  const [loginPass, setLoginPass]   = useState('');
+  const [loginErr, setLoginErr]     = useState('');
 
   const set = useCallback(<K extends keyof SimulationParams>(k: K, v: SimulationParams[K]) =>
     setP(prev => ({ ...prev, [k]: v })), []);
+
+  React.useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const s = params.get('s');
+      const mode = params.get('mode');
+      if (s) setP(prev => ({ ...prev, ...JSON.parse(atob(s)) }));
+      if (mode === 'static') setIsStaticView(true);
+      if (mode === 'static' || mode === 'dynamic') setIsClientLink(true);
+    } catch {}
+    try {
+      const sess = localStorage.getItem('cotiz_session');
+      if (sess) { const { role } = JSON.parse(sess); if (role) { setAuthed(true); setHasSession(true); } }
+    } catch {}
+  }, []);
+
+  const doLogin = () => {
+    const key = `${loginUser.trim().toLowerCase()}:${loginPass.trim()}`;
+    if (AUTH_USERS[key]) {
+      try { localStorage.setItem(SESSION_KEY, JSON.stringify({ role: AUTH_USERS[key].role })); } catch {}
+      setAuthed(true); setHasSession(true); setLoginErr('');
+    } else {
+      setLoginErr('Usuario o contraseña incorrectos.');
+    }
+  };
+
+  // ── Login wall ──────────────────────────────────────────────
+  if (!authed && !isClientLink) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f0f7ff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, fontFamily: 'system-ui,sans-serif' }}>
+        <div style={{ background: '#fff', border: '1px solid #bfdbfe', borderRadius: 14, width: '100%', maxWidth: 380, padding: 36, boxShadow: '0 8px 40px #1d4ed815' }}>
+          <div style={{ textAlign: 'center', marginBottom: 28 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <div style={{ width: 36, height: 36, background: 'linear-gradient(135deg,#1d4ed8,#0284c7)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 900, color: '#fff' }}>P</div>
+              <span style={{ fontSize: 18, fontWeight: 800, color: '#0f2957' }}>Proppi</span>
+            </div>
+            <h1 style={{ fontSize: 16, fontWeight: 800, color: '#0f2957', margin: 0 }}>Simulador de Inversión</h1>
+            <p style={{ fontSize: 12, color: '#6b93c4', marginTop: 4 }}>Acceso interno Proppi</p>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 4 }}>Usuario</p>
+            <input value={loginUser} onChange={e => setLoginUser(e.target.value)} onKeyDown={e => e.key === 'Enter' && doLogin()} style={LOGIN_INPUT} placeholder="proppi o admin" />
+          </div>
+          <div style={{ marginBottom: 18 }}>
+            <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 4 }}>Contraseña</p>
+            <input type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && doLogin()} style={LOGIN_INPUT} placeholder="••••••••" />
+          </div>
+          {loginErr && <p style={{ fontSize: 11, color: '#dc2626', marginBottom: 12, textAlign: 'center' }}>{loginErr}</p>}
+          <button onClick={doLogin} style={{ border: 'none', cursor: 'pointer', borderRadius: 8, fontWeight: 700, fontSize: 13, width: '100%', padding: '12px 0', background: 'linear-gradient(135deg,#1d4ed8,#0284c7)', color: '#fff' }}>
+            Ingresar →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const handleSave = useCallback(() => {
+    const encoded = btoa(JSON.stringify(p));
+    window.history.replaceState({}, '', `?s=${encoded}`);
+    localStorage.setItem('real_estate_sim', JSON.stringify(p));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }, [p]);
+
+  const getShareLink = useCallback((mode: 'static' | 'dynamic' = 'dynamic') => {
+    const base = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${base}?s=${btoa(JSON.stringify(p))}&mode=${mode}`;
+  }, [p]);
 
   const R = useMemo(() => runSimulation(p), [p]);
 
@@ -707,12 +1116,13 @@ export default function Home() {
   const { month: fdm, year: fdy } = addMonths(escrituraMes.month, escrituraMes.year, p.gracePeriodMonths + 1);
   const firstDividendLabel = `${ML[fdm]} ${fdy}`;
 
-  // Chart data (sólo post-escritura para flujo)
-  const chartData = R.monthlyData.slice(R.escrituraMonth).map(d => ({
+  // Chart data (todos los meses desde m=1, incluye pre-entrega con cuotas pie)
+  const chartData = R.monthlyData.slice(1).map(d => ({
     name: d.dateShort,
     'Flujo neto': d.netCashFlow,
     'Arr. neto': d.netRent,
-    'Dividendo': -d.dividend,
+    'Dividendo': d.dividend > 0 ? -d.dividend : 0,
+    'Cuota pie': d.pieCuota > 0 ? -d.pieCuota : 0,
     'Acumulado': d.cumulativeCashFlow,
   }));
 
@@ -740,26 +1150,88 @@ export default function Home() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 32, height: 32, background: '#fff', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 15, color: '#1d4ed8' }}>P</div>
             <div>
-              <h1 style={{ fontSize: 14, fontWeight: 800, color: '#fff', lineHeight: 1 }}>Simulador de Inversión Inmobiliaria</h1>
+              <h1 style={{ fontSize: 14, fontWeight: 800, color: '#fff', lineHeight: 1 }}>
+                {p.projectName || 'Simulador Inmobiliario'}
+              </h1>
               <p style={{ fontSize: 10, color: '#93c5fd' }}>
                 {p.commune} · {ML[p.startMonth]} {p.startYear} ·{' '}
                 {p.deliveryType === 'immediate' ? 'Entrega Inmediata' : `Entrega Futura (${p.constructionMonths} meses obra)`}
+                {p.guaranteedRentEnabled ? ` · 🏆 Garantía ${p.guaranteedRentMonths/12}a` : ''}
               </p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', fontSize: 11 }}>
-            <span style={{ color: '#bfdbfe' }}>🏦 1er dividendo: <strong style={{ color: '#fff' }}>{firstDividendLabel}</strong></span>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', fontSize: 11 }}>
+            <span style={{ color: '#bfdbfe' }}>🏦 1er div.: <strong style={{ color: '#fff' }}>{firstDividendLabel}</strong></span>
             <span style={{ fontSize: 11, fontWeight: 700, background: '#ffffff25', color: '#fff', padding: '4px 12px', borderRadius: 20, border: '1px solid #ffffff40' }}>
-              {fUF(p.propertyValueUF, 0)} · UF ${p.ufValueCLP.toLocaleString('es-CL')}
+              {fUF(R.totalValueUF, 0)} · UF ${p.ufValueCLP.toLocaleString('es-CL')}
             </span>
+            {!isStaticView && (
+              <>
+                <a href="/cotizaciones" style={{
+                  padding: '6px 14px', borderRadius: 20, border: '1px solid #ffffff40',
+                  background: '#ffffff15', color: '#bfdbfe', fontSize: 11, fontWeight: 600,
+                  cursor: 'pointer', textDecoration: 'none',
+                }}>
+                  📋 Historial
+                </a>
+                <button onClick={() => setShowMap(true)} style={{
+                  padding: '6px 14px', borderRadius: 20, border: '1px solid #ffffff40',
+                  background: '#0369a1', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                }}>
+                  🗺️ Mapa interactivo
+                </button>
+                <button onClick={() => { handleSave(); setShowSendModal(true); }} style={{
+                  padding: '6px 14px', borderRadius: 20, border: '1px solid #ffffff60',
+                  background: '#7c3aed', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                }}>
+                  📧 Enviar al cliente
+                </button>
+                {hasSession && (
+                  <button onClick={() => {
+                    try { localStorage.removeItem('cotiz_session'); } catch {}
+                    window.location.href = '/cotizaciones';
+                  }} style={{
+                    padding: '6px 14px', borderRadius: 20, border: '1px solid #ffffff30',
+                    background: 'transparent', color: '#93c5fd', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                  }}>
+                    Cerrar sesión
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </div>
       </header>
 
       <main style={{ maxWidth: 1600, margin: '0 auto', padding: '18px 16px' }}>
 
+        {/* STATIC VIEW BANNER */}
+        {isStaticView && (
+          <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #1d4ed8)', borderRadius: 16, padding: '20px 28px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+            <div>
+              <p style={{ fontSize: 10, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Simulación personalizada</p>
+              {p.projectName && <p style={{ fontSize: 11, fontWeight: 700, color: '#93c5fd', marginBottom: 2 }}>{p.projectName}</p>}
+              <h2 style={{ fontSize: 22, fontWeight: 900, color: '#fff', marginBottom: 4 }}>
+                {p.clientName ? `Hola, ${p.clientName}` : 'Tu Simulación de Inversión'}
+              </h2>
+              <p style={{ fontSize: 12, color: '#bfdbfe' }}>
+                {p.commune} · {fUF(R.totalValueUF, 0)} · {ML[p.startMonth]} {p.startYear}
+              </p>
+              {(p.clientRut || p.clientEmail) && (
+                <p style={{ fontSize: 11, color: '#93c5fd', marginTop: 4 }}>
+                  {p.clientRut ? `RUT ${p.clientRut}` : ''}{p.clientRut && p.clientEmail ? ' · ' : ''}{p.clientEmail || ''}
+                </p>
+              )}
+            </div>
+            <a href={`${typeof window !== 'undefined' ? window.location.href.replace('mode=static','mode=dynamic') : ''}`}
+              style={{ padding: '10px 20px', borderRadius: 10, background: '#ffffff20', border: '1px solid #ffffff40', color: '#fff', fontSize: 12, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+              🎮 Explorar interactivamente →
+            </a>
+          </div>
+        )}
+
         {/* KPI STRIP */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 12 }}>
           <KpiCard label="Dividendo mensual" icon="🏦" value={fCLP(R.monthlyPaymentCLP, false)}
             sub={`${fUF(R.monthlyPaymentUF)} / mes`} type="blue" />
           <KpiCard label="Arriendo neto" icon="🏠" value={fCLPFull(R.netMonthlyRentCLP)}
@@ -768,26 +1240,32 @@ export default function Home() {
             value={fCLP(R.avgMonthlyCashFlow, false)} sub="promedio período análisis"
             type={R.avgMonthlyCashFlow >= 0 ? 'positive' : 'negative'} />
           <KpiCard label="Cap Rate" icon="💹" value={fPct(R.capRatePercent)}
-            sub="Renta anual neta / valor dpto" type="blue" />
+            sub="Renta anual neta / valor total" type="blue" />
           <KpiCard label="Pie cliente total" icon="💰"
             value={R.clientPieUF === 0 ? '$0 — cubierto ✅' : fUF(R.clientPieUF, 0)}
-            sub={R.clientPieUF > 0 ? `${fCLP(R.clientPieUpfrontUF * p.ufValueCLP, false)} contado + cuotas` : `Bono pie cubre el ${p.bonoPiePercent}%`}
+            sub={R.clientPieUF > 0 ? `${fCLP(R.clientPieUpfrontUF * p.ufValueCLP, false)} contado + cuotas` : 'Bono pie cubre todo'}
             type={R.clientPieUF === 0 ? 'positive' : 'sky'} />
           <KpiCard label="Cuota pie / mes" icon="📅"
             value={R.monthlyCuotaUF > 0 ? fCLPFull(R.monthlyCuotaUF * p.ufValueCLP) : '$0'}
             sub={cuotaLabel} type={R.monthlyCuotaUF > 0 ? 'negative' : 'positive'} />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 20, alignItems: 'start' }}>
+        {/* INVESTMENT SUMMARY + COMPACT SCENARIOS */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+          <InvestmentSummary R={R} p={p} />
+          <CompactScenarios R={R} p={p} />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: isStaticView ? '1fr' : '300px 1fr', gap: 20, alignItems: 'start' }}>
 
           {/* ── SIDEBAR ─────────────────────────────────── */}
-          <aside style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <aside style={{ display: isStaticView ? 'none' : 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={CARD}>
               <div style={{ padding: '14px 16px 8px' }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Parámetros</p>
                 {/* Tabs */}
                 <div style={{ display: 'flex', gap: 3, background: '#eff6ff', borderRadius: 10, padding: 4 }}>
-                  {([['prop','🏢 Dpto'],['credit','🏦 Crédito'],['pie','💰 Pie'],['rent','🏠 Arriendo'],['exit','📊 Salida']] as const).map(([k, lbl]) => (
+                  {([['prop','🏢 Dpto'],['credit','🏦 Crédito'],['pie','💰 Pie'],['rent','🏠 Arriendo'],['exit','📊 Salida'],['cliente','👤 Cliente']] as const).map(([k, lbl]) => (
                     <button key={k} onClick={() => setTab(k)} style={{
                       flex: 1, fontSize: 9, fontWeight: 600, padding: '5px 3px', borderRadius: 7,
                       border: 'none', cursor: 'pointer', transition: 'all 0.15s',
@@ -802,14 +1280,73 @@ export default function Home() {
 
                 {/* ── TAB: PROPIEDAD ── */}
                 {tab === 'prop' && <>
-                  <Slider label="Valor propiedad" value={p.propertyValueUF} min={1000} max={10000} step={100}
-                    display={fUF(p.propertyValueUF, 0)} onChange={v => set('propertyValueUF', v)} />
-                  <Slider label="Valor UF actual (CLP)" value={p.ufValueCLP} min={35000} max={45000} step={500}
-                    display={`$${p.ufValueCLP.toLocaleString('es-CL')}`} onChange={v => set('ufValueCLP', v)} />
+                  <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>Nombre del proyecto</p>
+                  <input value={p.projectName} onChange={e => set('projectName', e.target.value)} style={{ ...INPUT_S, marginBottom: 14 }} placeholder="Ej: Edificio Vista Oriente" />
+                  <NumberInput label="Valor propiedad (UF)" value={p.propertyValueUF}
+                    onChange={v => set('propertyValueUF', v)}
+                    suffix={`≈ ${fCLP(p.propertyValueUF * p.ufValueCLP, false)}`} />
+                  <NumberInput label="Valor UF hoy (CLP)" value={p.ufValueCLP}
+                    onChange={v => set('ufValueCLP', v)}
+                    suffix={`$${p.ufValueCLP.toLocaleString('es-CL')}`} />
                   <Slider label="Crecimiento UF anual (inflación)" value={p.ufAnnualGrowthPercent} min={0} max={8} step={0.5}
                     display={`${p.ufAnnualGrowthPercent}%`} onChange={v => set('ufAnnualGrowthPercent', v)} />
                   <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>Comuna</p>
-                  <input value={p.commune} onChange={e => set('commune', e.target.value)} style={INPUT_S} />
+                  <input value={p.commune} onChange={e => set('commune', e.target.value)} style={{ ...INPUT_S, marginBottom: 14 }} />
+
+                  <p style={{ fontSize: 10, fontWeight: 700, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Estacionamientos</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                    <div>
+                      <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>Cantidad</p>
+                      <select value={p.parkingCount} onChange={e => set('parkingCount', parseInt(e.target.value))} style={INPUT_S}>
+                        {[0,1,2,3].map(n => <option key={n} value={n}>{n === 0 ? 'Sin estac.' : `${n} estac.`}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>Precio c/u (UF)</p>
+                      <input type="number" value={p.parkingValueUF} onChange={e => set('parkingValueUF', parseFloat(e.target.value) || 0)} style={INPUT_S} disabled={p.parkingCount === 0} />
+                    </div>
+                  </div>
+                  {p.parkingCount > 0 && (
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 14, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={p.parkingBonoPie} onChange={e => set('parkingBonoPie', e.target.checked)} style={{ width: 14, height: 14, accentColor: '#1d4ed8', marginTop: 1, flexShrink: 0 }} />
+                      <span>
+                        <span style={{ fontSize: 11, color: '#0f2957', fontWeight: 600 }}>El estacionamiento incluye bono pie</span>
+                        <span style={{ display: 'block', fontSize: 10, color: p.parkingBonoPie ? '#059669' : '#6b7280', marginTop: 2 }}>
+                          {p.parkingBonoPie
+                            ? `Desarrollador aporta ${p.bonoPiePercent}% del precio (${(p.parkingCount * p.parkingValueUF * (Math.min(p.bonoPiePercent, 100 - p.financingPercent) / 100)).toFixed(1)} UF)`
+                            : 'Cliente paga el pie completo del estacionamiento'}
+                        </span>
+                      </span>
+                    </label>
+                  )}
+
+                  <p style={{ fontSize: 10, fontWeight: 700, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Bodega</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                    <div>
+                      <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>Cantidad</p>
+                      <select value={p.storageCount} onChange={e => set('storageCount', parseInt(e.target.value))} style={INPUT_S}>
+                        <option value={0}>Sin bodega</option>
+                        <option value={1}>1 bodega</option>
+                      </select>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>Precio (UF)</p>
+                      <input type="number" value={p.storageValueUF} onChange={e => set('storageValueUF', parseFloat(e.target.value) || 0)} style={INPUT_S} disabled={p.storageCount === 0} />
+                    </div>
+                  </div>
+                  {p.storageCount > 0 && (
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 14, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={p.storageBonoPie} onChange={e => set('storageBonoPie', e.target.checked)} style={{ width: 14, height: 14, accentColor: '#1d4ed8', marginTop: 1, flexShrink: 0 }} />
+                      <span>
+                        <span style={{ fontSize: 11, color: '#0f2957', fontWeight: 600 }}>La bodega incluye bono pie</span>
+                        <span style={{ display: 'block', fontSize: 10, color: p.storageBonoPie ? '#059669' : '#6b7280', marginTop: 2 }}>
+                          {p.storageBonoPie
+                            ? `Desarrollador aporta ${p.bonoPiePercent}% del precio (${(p.storageCount * p.storageValueUF * (Math.min(p.bonoPiePercent, 100 - p.financingPercent) / 100)).toFixed(1)} UF)`
+                            : 'Cliente paga el pie completo de la bodega'}
+                        </span>
+                      </span>
+                    </label>
+                  )}
                 </>}
 
                 {/* ── TAB: CRÉDITO ── */}
@@ -856,6 +1393,27 @@ export default function Home() {
                   <Slider label="Período de gracia post-entrega" value={p.gracePeriodMonths} min={0} max={12} step={1}
                     display={`${p.gracePeriodMonths} meses → 1er div. ${firstDividendLabel}`}
                     onChange={v => set('gracePeriodMonths', v)} />
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, color: '#4a7abf' }}>Gastos operacionales crédito (CLP)</span>
+                      <span style={{ fontSize: 10, color: '#6b93c4' }}>cobrado al escriturar</span>
+                    </div>
+                    <input
+                      style={INPUT_S}
+                      value={p.operationalCostsCLP === 0 ? '' : p.operationalCostsCLP.toLocaleString('es-CL')}
+                      placeholder="ej: 1.500.000"
+                      onChange={e => {
+                        const raw = e.target.value.replace(/\./g, '').replace(/[^\d]/g, '');
+                        set('operationalCostsCLP', parseInt(raw) || 0);
+                      }}
+                      inputMode="numeric"
+                    />
+                    {p.operationalCostsCLP > 0 && (
+                      <p style={{ fontSize: 10, color: '#dc2626', marginTop: 4 }}>
+                        Se descuentan {fCLPFull(p.operationalCostsCLP)} el mes de escritura
+                      </p>
+                    )}
+                  </div>
                 </>}
 
                 {/* ── TAB: PIE ── */}
@@ -901,9 +1459,17 @@ export default function Home() {
                       </p>
                     </div>
 
-                    <Slider label="% del pie al contado (up front)" value={p.clientPieUpfrontPct} min={0} max={100} step={5}
-                      display={`${p.clientPieUpfrontPct}% = ${fUF(R.clientPieUpfrontUF, 2)}`}
-                      onChange={v => set('clientPieUpfrontPct', v)} />
+                    <div style={{ marginBottom: 14 }}>
+                      <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>% del pie al contado (up front)</p>
+                      <input
+                        type="number" min={0} max={100} value={p.clientPieUpfrontPct}
+                        onChange={e => set('clientPieUpfrontPct', Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                        style={{ ...INPUT_S, marginBottom: 4 }}
+                      />
+                      <p style={{ fontSize: 10, color: '#7c3aed', margin: 0 }}>
+                        {fUF(R.clientPieUpfrontUF, 2)} · <strong>{fCLP(R.clientPieUpfrontUF * p.ufValueCLP, false)}</strong>
+                      </p>
+                    </div>
                     <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', marginBottom: 14, fontSize: 11 }}>
                       <span style={{ color: '#92400e' }}>En cuotas ({100 - p.clientPieUpfrontPct}%): </span>
                       <strong style={{ color: '#d97706' }}>{fUF(R.clientPieCuotasUF, 2)} · {fCLP(R.clientPieCuotasUF * p.ufValueCLP, false)}</strong>
@@ -928,10 +1494,121 @@ export default function Home() {
 
                 {/* ── TAB: ARRIENDO ── */}
                 {tab === 'rent' && <>
+                  {/* Arriendo garantizado toggle */}
+                  <div style={{ background: p.guaranteedRentEnabled ? '#f0fdf4' : '#f8faff', border: `1px solid ${p.guaranteedRentEnabled ? '#86efac' : '#dbeafe'}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: p.guaranteedRentEnabled ? 14 : 0 }}>
+                      <input type="checkbox" checked={p.guaranteedRentEnabled} onChange={e => set('guaranteedRentEnabled', e.target.checked)}
+                        style={{ width: 16, height: 16, accentColor: '#15803d', cursor: 'pointer' }} />
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: p.guaranteedRentEnabled ? '#15803d' : '#334d6e', marginBottom: 1 }}>🏆 Arriendo Garantizado</p>
+                        <p style={{ fontSize: 10, color: '#6b93c4' }}>El desarrollador garantiza el arriendo mensual por un período fijo</p>
+                      </div>
+                    </label>
+                    {p.guaranteedRentEnabled && <>
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span style={{ fontSize: 11, color: '#4a7abf' }}>Monto garantizado bruto mensual (CLP)</span>
+                        </div>
+                        <input
+                          style={INPUT_S}
+                          value={p.guaranteedRentCLP === 0 ? '' : p.guaranteedRentCLP.toLocaleString('es-CL')}
+                          placeholder="ej: 450.000"
+                          onChange={e => {
+                            const raw = e.target.value.replace(/\./g, '').replace(/[^\d]/g, '');
+                            set('guaranteedRentCLP', parseInt(raw) || 0);
+                          }}
+                          inputMode="numeric"
+                        />
+                      </div>
+                      <div style={{ marginBottom: 12 }}>
+                        <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>Duración del arriendo garantizado</p>
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                          {[12, 24, 36, 48, 60].map(m => (
+                            <button key={m} onClick={() => set('guaranteedRentMonths', m)} style={{
+                              padding: '5px 10px', borderRadius: 8, border: '1px solid',
+                              borderColor: p.guaranteedRentMonths === m ? '#15803d' : '#dbeafe',
+                              background: p.guaranteedRentMonths === m ? '#f0fdf4' : '#fff',
+                              color: p.guaranteedRentMonths === m ? '#15803d' : '#94a3b8',
+                              fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                            }}>{m / 12}a</button>
+                          ))}
+                        </div>
+                      </div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer', fontSize: 11, color: '#0f2957' }}>
+                        <input type="checkbox" checked={p.guaranteedRentNoAdmin} onChange={e => set('guaranteedRentNoAdmin', e.target.checked)}
+                          style={{ width: 14, height: 14, accentColor: '#15803d' }} />
+                        <span>Sin cobro de administración <span style={{ color: '#6b93c4' }}>(el desarrollador la cubre)</span></span>
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 11, color: '#0f2957' }}>
+                        <input type="checkbox" checked={p.guaranteedRentUFAdjusted} onChange={e => set('guaranteedRentUFAdjusted', e.target.checked)}
+                          style={{ width: 14, height: 14, accentColor: '#15803d' }} />
+                        <span>Reajuste anual por UF <span style={{ color: '#6b93c4' }}>({p.ufAnnualGrowthPercent}%/año)</span></span>
+                      </label>
+                      <div style={{ background: '#fff', borderRadius: 8, padding: '10px 12px', marginTop: 12, fontSize: 11 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <span style={{ color: '#6b93c4' }}>Monto bruto garantizado</span>
+                          <span style={{ fontWeight: 700, color: '#15803d', fontFamily: 'monospace' }}>{fCLPFull(p.guaranteedRentCLP)}/mes</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <span style={{ color: '#6b93c4' }}>Administración</span>
+                          <span style={{ fontWeight: 700, color: p.guaranteedRentNoAdmin ? '#15803d' : '#dc2626', fontFamily: 'monospace' }}>
+                            {p.guaranteedRentNoAdmin ? '$0 (cubierta)' : `-${fCLPFull(p.guaranteedRentCLP * p.managementFeePercent / 100)}`}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #eff6ff', paddingTop: 4, marginTop: 4 }}>
+                          <span style={{ color: '#6b93c4', fontWeight: 700 }}>Lo que llega al cliente</span>
+                          <span style={{ fontWeight: 800, color: '#15803d', fontFamily: 'monospace' }}>
+                            {fCLPFull(p.guaranteedRentNoAdmin ? p.guaranteedRentCLP : p.guaranteedRentCLP * (1 - p.managementFeePercent / 100))}/mes
+                          </span>
+                        </div>
+                      </div>
+                    </>}
+                  </div>
+
+                  <p style={{ fontSize: 10, fontWeight: 700, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                    {p.guaranteedRentEnabled ? 'Arriendo de mercado (post-garantía)' : 'Arriendo de mercado'}
+                  </p>
                   <Slider label="Arriendo mensual bruto" value={p.monthlyRentCLP} min={200000} max={2000000} step={10000}
                     display={fCLPFull(p.monthlyRentCLP)} onChange={v => set('monthlyRentCLP', v)} />
                   <Slider label="Fee de administración" value={p.managementFeePercent} min={0} max={15} step={0.5}
                     display={`${p.managementFeePercent}%`} onChange={v => set('managementFeePercent', v)} />
+                  <Slider label="Reajuste anual sobre UF" value={p.rentAnnualExtraPercent} min={0} max={10} step={0.5}
+                    display={`UF + ${p.rentAnnualExtraPercent}%/año`} onChange={v => set('rentAnnualExtraPercent', v)} />
+
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, color: '#4a7abf' }}>Vacancia (días al año)</span>
+                      {p.vacancyDays > 0 && <span style={{ fontSize: 10, color: '#dc2626', fontWeight: 700 }}>{((p.vacancyDays/365)*100).toFixed(1)}% del año</span>}
+                    </div>
+                    <input
+                      type="number" min={0} max={365} value={p.vacancyDays === 0 ? '' : p.vacancyDays}
+                      onChange={e => set('vacancyDays', Math.min(365, Math.max(0, parseInt(e.target.value) || 0)))}
+                      style={INPUT_S} placeholder="ej: 15 días"
+                    />
+                    {p.vacancyDays > 0 && (
+                      <p style={{ fontSize: 10, color: '#dc2626', marginTop: 4 }}>
+                        Reduce ingresos en {fCLPFull(p.monthlyRentCLP * p.vacancyDays / 365)}/mes promedio
+                      </p>
+                    )}
+                  </div>
+
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, color: '#4a7abf' }}>Fondo de reserva inicial (UF)</span>
+                      <span style={{ fontSize: 10, color: '#6b93c4' }}>cobrado al escriturar</span>
+                    </div>
+                    <input
+                      type="number" min={0} value={p.reserveFundUF === 0 ? '' : p.reserveFundUF}
+                      onChange={e => set('reserveFundUF', parseFloat(e.target.value) || 0)}
+                      style={INPUT_S} placeholder="ej: 10"
+                    />
+                    {p.reserveFundUF > 0 && (
+                      <p style={{ fontSize: 10, color: '#dc2626', marginTop: 4 }}>
+                        {fUF(p.reserveFundUF, 1)} = {fCLPFull(p.reserveFundUF * p.ufValueCLP)} al escriturar
+                      </p>
+                    )}
+                  </div>
+
                   <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10, padding: 12, fontSize: 11 }}>
                     {[
                       ['Arriendo bruto', fCLPFull(p.monthlyRentCLP), '#0f2957'],
@@ -949,10 +1626,17 @@ export default function Home() {
 
                 {/* ── TAB: SALIDA ── */}
                 {tab === 'exit' && <>
-                  <Slider label="Plusvalía escenario conservador" value={p.appreciationScenario1Percent} min={0} max={100} step={5}
-                    display={`+${p.appreciationScenario1Percent}%`} onChange={v => set('appreciationScenario1Percent', v)} />
-                  <Slider label="Plusvalía escenario optimista" value={p.appreciationScenario2Percent} min={0} max={150} step={5}
-                    display={`+${p.appreciationScenario2Percent}%`} onChange={v => set('appreciationScenario2Percent', v)} />
+                  <Slider label="Plusvalía base anual de la zona (0–10%)" value={p.baseAnnualAppreciationPercent} min={0} max={10} step={0.5}
+                    display={`${p.baseAnnualAppreciationPercent}%/año`} onChange={v => set('baseAnnualAppreciationPercent', v)} />
+                  <div style={{ background: '#eff6ff', borderRadius: 8, padding: '8px 10px', marginBottom: 14, fontSize: 11, color: '#1d4ed8' }}>
+                    El valor base refleja el crecimiento esperado anual de la zona. Se penaliza por escenario.
+                  </div>
+                  <Slider label="Factor conservador" value={p.scenario1FactorPercent} min={0} max={100} step={5}
+                    display={`${p.scenario1FactorPercent}% → ${fPct(p.baseAnnualAppreciationPercent * p.scenario1FactorPercent / 100, 1)}/año`}
+                    onChange={v => set('scenario1FactorPercent', v)} />
+                  <Slider label="Factor optimista" value={p.scenario2FactorPercent} min={0} max={100} step={5}
+                    display={`${p.scenario2FactorPercent}% → ${fPct(p.baseAnnualAppreciationPercent * p.scenario2FactorPercent / 100, 1)}/año`}
+                    onChange={v => set('scenario2FactorPercent', v)} />
                   <Slider label="Años de análisis (post-entrega)" value={p.analysisYears} min={3} max={10} step={1}
                     display={`${p.analysisYears} años`} onChange={v => set('analysisYears', v)} />
                   <Slider label="Gastos de venta" value={p.saleCostPercent} min={0} max={5} step={0.5}
@@ -971,6 +1655,30 @@ export default function Home() {
                   </div>
                 </>}
 
+                {/* ── TAB: CLIENTE ── */}
+                {tab === 'cliente' && <>
+                  <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>Nombre del cliente</p>
+                  <input value={p.clientName} onChange={e => set('clientName', e.target.value)} style={{ ...INPUT_S, marginBottom: 14 }} placeholder="Nombre Apellido" />
+                  <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>RUT</p>
+                  <input value={p.clientRut} onChange={e => set('clientRut', e.target.value)} style={{ ...INPUT_S, marginBottom: 14 }} placeholder="12.345.678-9" />
+                  <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>Email del cliente</p>
+                  <input type="email" value={p.clientEmail} onChange={e => set('clientEmail', e.target.value)} style={{ ...INPUT_S, marginBottom: 14 }} placeholder="cliente@email.com" />
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <button onClick={handleSave} style={{
+                      flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
+                      background: saved ? '#15803d' : '#1d4ed8', color: '#fff', fontSize: 12, fontWeight: 700, transition: 'background 0.3s',
+                    }}>
+                      {saved ? '✅ Guardado' : '💾 Guardar'}
+                    </button>
+                    <button onClick={() => { handleSave(); setShowSendModal(true); }} style={{
+                      flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
+                      background: '#7c3aed', color: '#fff', fontSize: 12, fontWeight: 700,
+                    }}>
+                      📧 Enviar
+                    </button>
+                  </div>
+                </>}
+
               </div>
             </div>
 
@@ -979,6 +1687,9 @@ export default function Home() {
               <p style={{ fontSize: 10, fontWeight: 700, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Resumen</p>
               {[
                 ['Valor dpto', fUF(p.propertyValueUF, 0)],
+                ...(p.parkingCount > 0 ? [[`Estac. (${p.parkingCount}x${fUF(p.parkingValueUF,0)})`, fUF(p.parkingCount*p.parkingValueUF,0)]] : []),
+                ...(p.storageCount > 0 ? [['Bodega', fUF(p.storageValueUF,0)]] : []),
+                ['Total activo', fUF(R.totalValueUF, 0)],
                 [`Banco (${p.financingPercent}%)`, fUF(R.loanUF, 0)],
                 [`Bono pie (${p.bonoPiePercent}%)`, fUF(R.bonoPieUF, 0)],
                 ['Pie cliente', R.clientPieUF === 0 ? 'UF 0 ✅' : fUF(R.clientPieUF, 2)],
@@ -1008,8 +1719,8 @@ export default function Home() {
             <div style={CARD}>
               <div style={{ padding: '14px 18px 8px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                 <div>
-                  <h2 style={{ fontSize: 13, fontWeight: 700, color: '#0f2957', marginBottom: 2 }}>Flujo de Caja Mensual (post-entrega)</h2>
-                  <p style={{ fontSize: 10, color: '#6b93c4' }}>Verde = superávit · Rojo = déficit (top-up) · Gracia resaltada</p>
+                  <h2 style={{ fontSize: 13, fontWeight: 700, color: '#0f2957', marginBottom: 2 }}>Flujo de Caja Mensual</h2>
+                  <p style={{ fontSize: 10, color: '#6b93c4' }}>Verde = superávit · Rojo = déficit · Incluye período pre-entrega si hay cuotas pie</p>
                 </div>
               </div>
               <div style={{ padding: '0 12px 12px' }}>
@@ -1023,6 +1734,7 @@ export default function Home() {
                     <Bar dataKey="Flujo neto" fill="#10b981" radius={[2, 2, 0, 0]} opacity={0.85} />
                     <Line type="monotone" dataKey="Arr. neto" stroke="#2563eb" strokeWidth={2} dot={false} strokeDasharray="5 3" />
                     <Line type="monotone" dataKey="Dividendo" stroke="#dc2626" strokeWidth={2} dot={false} strokeDasharray="5 3" />
+                    <Line type="monotone" dataKey="Cuota pie" stroke="#f59e0b" strokeWidth={2} dot={false} strokeDasharray="3 3" />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -1093,23 +1805,37 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Escenarios */}
-            <ScenariosComparison R={R} p={p} />
-
             {/* TABLA PRINCIPAL */}
             <div>
               <div style={{ marginBottom: 10 }}>
-                <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0f2957', marginBottom: 3 }}>
-                  Flujo Detallado — Todos los Meses
-                  <span style={{ fontSize: 11, fontWeight: 400, color: '#6b93c4', marginLeft: 10 }}>
-                    {R.totalTableMonths + 1} columnas · scroll horizontal →
-                  </span>
-                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 8 }}>
+                  <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0f2957', margin: 0 }}>
+                    Flujo Detallado — Todos los Meses
+                    <span style={{ fontSize: 11, fontWeight: 400, color: '#6b93c4', marginLeft: 10 }}>
+                      {R.totalTableMonths + 1} columnas
+                    </span>
+                  </h2>
+                  <a
+                    href={`/flujo?s=${btoa(JSON.stringify(p))}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                      background: '#eff6ff', color: '#1d4ed8',
+                      border: '1px solid #bfdbfe', textDecoration: 'none',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    ↗ Ver flujo en detalle
+                  </a>
+                </div>
                 <div style={{ display: 'flex', gap: 14, fontSize: 10, flexWrap: 'wrap' }}>
                   {[
                     { bg: '#7c3aed', label: p.deliveryType === 'future' ? 'Promesa' : 'Escritura' },
                     ...(p.deliveryType === 'future' ? [{ bg: '#d97706', label: 'Construcción (pre-entrega)' }] : []),
                     { bg: '#16a34a', label: 'Período de gracia' },
+                    ...(p.guaranteedRentEnabled ? [{ bg: '#15803d', label: `Arriendo garantizado (${p.guaranteedRentMonths/12}a)` }] : []),
                     { bg: '#1d4ed8', label: 'Período activo (renta + dividendo)' },
                   ].map(({ bg, label }) => (
                     <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#334d6e' }}>
@@ -1128,6 +1854,19 @@ export default function Home() {
           </div>
         </div>
       </main>
+      {showSendModal && <SendModal p={p} getShareLink={getShareLink} onClose={() => setShowSendModal(false)} />}
+      {showMap && <MapaInteractivoDynamic onClose={() => setShowMap(false)} />}
     </div>
   );
 }
+
+// Dynamic import to avoid SSR issues with Leaflet
+import dynamic from 'next/dynamic';
+const MapaInteractivoDynamic = dynamic(
+  () => import('./components/MapaInteractivo'),
+  { ssr: false, loading: () => (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <p style={{ color: '#1d4ed8', fontWeight: 600 }}>Cargando mapa...</p>
+    </div>
+  )},
+);
