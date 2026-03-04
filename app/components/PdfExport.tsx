@@ -83,11 +83,7 @@ function PdfTemplate({ p, R, clientName, clientRut, asesor }: {
         <div style={{ ...ROW, justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 40, height: 40, background: '#fff', borderRadius: 10,
-              lineHeight: '40px', textAlign: 'center',
-              fontWeight: 900, fontSize: 20, color: '#1d4ed8',
-            }}>P</div>
+            <div style={{ width: 40, height: 40, background: '#fff', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo.png" alt="Proppi" style={{ width: 28, height: 28, objectFit: 'contain' }} /></div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1 }}>Proppi</div>
               <div style={{ fontSize: 10, color: '#93c5fd', marginTop: 2 }}>Inversión Inmobiliaria</div>
@@ -336,7 +332,7 @@ function PdfTemplate({ p, R, clientName, clientRut, asesor }: {
       {/* ── FOOTER ───────────────────────────────── */}
       <div style={{ background: '#0f2957', padding: '16px 36px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 24, height: 24, background: '#fff', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 12, color: '#1d4ed8' }}>P</div>
+          <div style={{ width: 24, height: 24, background: '#fff', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo.png" alt="Proppi" style={{ width: 16, height: 16, objectFit: 'contain' }} /></div>
           <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>Proppi</span>
           <span style={{ fontSize: 10, color: '#4a7abf' }}>· proppi.cl</span>
         </div>
@@ -444,7 +440,7 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
           }}>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-              <div style={{ width: 36, height: 36, background: 'linear-gradient(135deg,#1d4ed8,#0284c7)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 16, color: '#fff' }}>P</div>
+              <div style={{ width: 36, height: 36, background: '#eff6ff', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo.png" alt="Proppi" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: '#0f2957' }}>Generar PDF</div>
                 <div style={{ fontSize: 11, color: '#6b93c4' }}>{p.projectName || 'Simulación de inversión'}</div>

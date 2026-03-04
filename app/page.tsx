@@ -1238,7 +1238,7 @@ export default function Home() {
         <div style={{ background: '#fff', border: '1px solid #bfdbfe', borderRadius: 14, width: '100%', maxWidth: 380, padding: 36, boxShadow: '0 8px 40px #1d4ed815' }}>
           <div style={{ textAlign: 'center', marginBottom: 28 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <div style={{ width: 36, height: 36, background: 'linear-gradient(135deg,#1d4ed8,#0284c7)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 900, color: '#fff' }}>P</div>
+              <div style={{ width: 36, height: 36, background: '#eff6ff', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo.png" alt="Proppi" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>
               <span style={{ fontSize: 18, fontWeight: 800, color: '#0f2957' }}>Proppi</span>
             </div>
             <h1 style={{ fontSize: 16, fontWeight: 800, color: '#0f2957', margin: 0 }}>Simulador de Inversión</h1>
@@ -1299,7 +1299,7 @@ export default function Home() {
       }}>
         <div style={{ maxWidth: 1600, margin: '0 auto', padding: '10px 20px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 32, height: 32, background: '#fff', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 15, color: '#1d4ed8' }}>P</div>
+            <div style={{ width: 32, height: 32, background: '#fff', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo.png" alt="Proppi" style={{ width: 22, height: 22, objectFit: 'contain' }} /></div>
             <div>
               <h1 style={{ fontSize: 14, fontWeight: 800, color: '#fff', lineHeight: 1 }}>
                 {p.projectName || 'Simulador Inmobiliario'}
