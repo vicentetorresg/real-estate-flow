@@ -1388,16 +1388,19 @@ export default function Home() {
                     display={`${p.financingPercent}% → ${fUF(R.loanUF, 0)}`} onChange={v => set('financingPercent', v)} />
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, color: '#4a7abf' }}>Tasa CAE anual (%)</span>
-                      <span style={{ fontSize: 10, color: '#6b93c4' }}>ej: 4.00</span>
+                      <span style={{ fontSize: 11, color: '#4a7abf' }}>Tasa CAE anual</span>
+                      <span style={{ fontSize: 10, color: '#6b93c4' }}>ej: 4.1</span>
                     </div>
-                    <input
-                      type="number" step="0.01" min="0" max="30"
-                      style={INPUT_S}
-                      value={p.annualRatePercent}
-                      onChange={e => set('annualRatePercent', parseFloat(e.target.value) || 0)}
-                      inputMode="decimal"
-                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                      <input
+                        type="number" step="0.1" min="0" max="30"
+                        style={{ ...INPUT_S, flex: 1, borderRadius: '8px 0 0 8px', marginBottom: 0 }}
+                        value={p.annualRatePercent}
+                        onChange={e => set('annualRatePercent', parseFloat(e.target.value) || 0)}
+                        inputMode="decimal"
+                      />
+                      <span style={{ background: '#e8f0fb', border: '1px solid #c3d8f7', borderLeft: 'none', borderRadius: '0 8px 8px 0', padding: '0 10px', fontSize: 13, color: '#4a7abf', fontWeight: 600, height: 34, display: 'flex', alignItems: 'center' }}>%</span>
+                    </div>
                   </div>
                   <Slider label="Plazo crédito" value={p.loanTermYears} min={5} max={30} step={5}
                     display={`${p.loanTermYears} años`} onChange={v => set('loanTermYears', v)} />
@@ -1406,19 +1409,22 @@ export default function Home() {
                     onChange={v => set('gracePeriodMonths', v)} />
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, color: '#4a7abf' }}>Gastos operacionales crédito (CLP)</span>
+                      <span style={{ fontSize: 11, color: '#4a7abf' }}>Gastos operacionales crédito</span>
                       <span style={{ fontSize: 10, color: '#6b93c4' }}>cobrado al escriturar</span>
                     </div>
-                    <input
-                      style={INPUT_S}
-                      value={p.operationalCostsCLP === 0 ? '' : p.operationalCostsCLP.toLocaleString('es-CL')}
-                      placeholder="ej: 1.500.000"
-                      onChange={e => {
-                        const raw = e.target.value.replace(/\./g, '').replace(/[^\d]/g, '');
-                        set('operationalCostsCLP', parseInt(raw) || 0);
-                      }}
-                      inputMode="numeric"
-                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                      <span style={{ background: '#e8f0fb', border: '1px solid #c3d8f7', borderRight: 'none', borderRadius: '8px 0 0 8px', padding: '0 10px', fontSize: 13, color: '#4a7abf', fontWeight: 600, height: 34, display: 'flex', alignItems: 'center' }}>$</span>
+                      <input
+                        style={{ ...INPUT_S, flex: 1, borderRadius: '0 8px 8px 0', marginBottom: 0 }}
+                        value={p.operationalCostsCLP === 0 ? '' : p.operationalCostsCLP.toLocaleString('es-CL')}
+                        placeholder="ej: 1.500.000"
+                        onChange={e => {
+                          const raw = e.target.value.replace(/\./g, '').replace(/[^\d]/g, '');
+                          set('operationalCostsCLP', parseInt(raw) || 0);
+                        }}
+                        inputMode="numeric"
+                      />
+                    </div>
                     {p.operationalCostsCLP > 0 && (
                       <p style={{ fontSize: 10, color: '#dc2626', marginTop: 4 }}>
                         Se descuentan {fCLPFull(p.operationalCostsCLP)} el mes de escritura
@@ -1820,26 +1826,26 @@ export default function Home() {
             <div>
               <div style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 8 }}>
-                  <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0f2957', margin: 0 }}>
+                  <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0f2957', margin: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     Flujo Detallado — Todos los Meses
-                    <span style={{ fontSize: 11, fontWeight: 400, color: '#6b93c4', marginLeft: 10 }}>
+                    <span style={{ fontSize: 11, fontWeight: 400, color: '#6b93c4' }}>
                       {R.totalTableMonths + 1} columnas
                     </span>
+                    <a
+                      href={`/flujo?s=${btoa(JSON.stringify(p))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                        background: '#eff6ff', color: '#1d4ed8',
+                        border: '1px solid #bfdbfe', textDecoration: 'none',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      ↗ Ver flujo en detalle
+                    </a>
                   </h2>
-                  <a
-                    href={`/flujo?s=${btoa(JSON.stringify(p))}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                      padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                      background: '#eff6ff', color: '#1d4ed8',
-                      border: '1px solid #bfdbfe', textDecoration: 'none',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    ↗ Ver flujo en detalle
-                  </a>
                 </div>
                 <div style={{ display: 'flex', gap: 14, fontSize: 10, flexWrap: 'wrap' }}>
                   {[
