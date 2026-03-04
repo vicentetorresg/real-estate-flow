@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
+import PdfExport from './components/PdfExport';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine, Area, AreaChart,
@@ -685,11 +686,15 @@ function ChartTip({ active, payload, label }: { active?: boolean; payload?: TTP[
 
 const ASESORES = ['Diego Sánchez', 'Cristóbal Sepúlveda', 'Matías Bertelsen', 'Vicente Torres'];
 
-function SendModal({ p, getShareLink, onClose }: { p: SimulationParams; getShareLink: (mode: 'static' | 'dynamic') => string; onClose: () => void }) {
+function SendModal({ p, getShareLink, onClose, defaultAsesor = '', onAsesorChange }: {
+  p: SimulationParams; getShareLink: (mode: 'static' | 'dynamic') => string; onClose: () => void;
+  defaultAsesor?: string; onAsesorChange?: (v: string) => void;
+}) {
   const [step, setStep] = React.useState<'mode' | 'send'>('mode');
   const [mode, setMode] = React.useState<'static' | 'dynamic'>('static');
   const [to, setTo] = React.useState(p.clientEmail || '');
-  const [asesor, setAsesor] = React.useState('');
+  const [asesor, setAsesor] = React.useState(defaultAsesor);
+  const handleSetAsesor = (v: string) => { setAsesor(v); onAsesorChange?.(v); };
   const [sending, setSending] = React.useState(false);
   const [sent, setSent] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -794,7 +799,7 @@ function SendModal({ p, getShareLink, onClose }: { p: SimulationParams; getShare
                 </button>
               </div>
               <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 6 }}>Asesor que envía:</p>
-              <select value={asesor} onChange={e => setAsesor(e.target.value)} style={{ ...INPUT_S, marginBottom: 14 }}>
+              <select value={asesor} onChange={e => handleSetAsesor(e.target.value)} style={{ ...INPUT_S, marginBottom: 14 }}>
                 <option value="">— Seleccionar asesor —</option>
                 {ASESORES.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
@@ -1103,20 +1108,28 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
                     const bg = isSection ? rowBg : colBg(d);
                     const tooltip = row.tooltipFn ? row.tooltipFn(d) : null;
                     return (
-                      <td key={d.month} title={tooltip ?? undefined} style={{
-                        textAlign: 'right', padding: '4px 8px',
+                      <td key={d.month} style={{
+                        textAlign: 'right', padding: '4px 8px', position: 'relative',
                         fontFamily: isSection ? 'inherit' : 'monospace',
                         fontWeight: row.type === 'result' ? 700 : 500,
                         fontSize: isSection ? 0 : 11,
                         color, background: bg, whiteSpace: 'nowrap',
                         borderLeft: '1px solid #f0f4ff',
-                        cursor: tooltip ? 'help' : 'default',
+                        cursor: tooltip ? 'default' : 'default',
                       }}>
                         {row.type === 'info'
                           ? (typeof raw === 'string'
                             ? <span style={{ fontSize: 9, fontFamily: 'inherit', fontWeight: 600, padding: '1px 5px', borderRadius: 4, background: '#dbeafe', color: '#1d4ed8' }}>{raw}</span>
                             : '')
                           : display}
+                        {tooltip && (
+                          <span className="td-tip" style={{
+                            display: 'none', position: 'absolute', bottom: '100%', right: 0, zIndex: 100,
+                            background: '#0f2957', color: '#e0f2fe', borderRadius: 8,
+                            padding: '6px 10px', fontSize: 10, whiteSpace: 'pre', minWidth: 180,
+                            boxShadow: '0 4px 16px #1d4ed840', pointerEvents: 'none',
+                          }}>{tooltip}</span>
+                        )}
                       </td>
                     );
                   })}
@@ -1152,6 +1165,7 @@ export default function Home() {
   const [showSendModal, setShowSendModal] = useState(false);
   const [showMap, setShowMap]             = useState(false);
   const [saved, setSaved] = useState(false);
+  const [selectedAsesor, setSelectedAsesor] = useState('');
   const [isStaticView, setIsStaticView] = useState(false);
   const [hasSession, setHasSession] = useState(false);
 
@@ -1322,6 +1336,7 @@ export default function Home() {
                 }}>
                   📧 Enviar al cliente
                 </button>
+                <PdfExport p={p} R={R} asesor={selectedAsesor} />
                 {hasSession && (
                   <button onClick={() => {
                     try { localStorage.removeItem('cotiz_session'); } catch {}
@@ -2022,7 +2037,7 @@ export default function Home() {
           </div>
         </div>
       </main>
-      {showSendModal && <SendModal p={p} getShareLink={getShareLink} onClose={() => setShowSendModal(false)} />}
+      {showSendModal && <SendModal p={p} getShareLink={getShareLink} onClose={() => setShowSendModal(false)} defaultAsesor={selectedAsesor} onAsesorChange={setSelectedAsesor} />}
       {showMap && <MapaInteractivoDynamic onClose={() => setShowMap(false)} />}
     </div>
   );

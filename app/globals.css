@@ -67,3 +67,6 @@ input[type="number"] { background: transparent; }
   z-index: 2;
 }
 .flow-table thead th:first-child { z-index: 4; }
+
+/* Dividend tooltip */
+td:hover .td-tip { display: block !important; }
