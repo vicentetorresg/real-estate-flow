@@ -444,20 +444,28 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
                   const bg      = isSection ? rowBg : colBg(d);
                   const tooltip = row.tooltipFn ? row.tooltipFn(d) : null;
                   return (
-                    <td key={d.month} title={tooltip ?? undefined} style={{
-                      textAlign: 'right', padding: '5px 10px',
+                    <td key={d.month} style={{
+                      textAlign: 'right', padding: '5px 10px', position: 'relative',
                       fontFamily: isSection ? 'inherit' : 'monospace',
                       fontWeight: row.type === 'result' ? 700 : 500,
                       fontSize: isSection ? 0 : 12,
                       color, background: bg, whiteSpace: 'nowrap',
                       borderLeft: '1px solid #f0f4ff',
-                      cursor: tooltip ? 'help' : 'default',
+                      cursor: 'default',
                     }}>
                       {row.type === 'info'
                         ? (typeof raw === 'string'
                           ? <span style={{ fontSize: 10, fontFamily: 'inherit', fontWeight: 600, padding: '1px 5px', borderRadius: 4, background: '#dbeafe', color: '#1d4ed8' }}>{raw}</span>
                           : '')
                         : display}
+                      {tooltip && (
+                        <span className="td-tip" style={{
+                          display: 'none', position: 'absolute', bottom: '100%', right: 0, zIndex: 100,
+                          background: '#0f2957', color: '#e0f2fe', borderRadius: 8,
+                          padding: '6px 10px', fontSize: 10, whiteSpace: 'pre', minWidth: 180,
+                          boxShadow: '0 4px 16px #1d4ed840', pointerEvents: 'none',
+                        }}>{tooltip}</span>
+                      )}
                     </td>
                   );
                 })}

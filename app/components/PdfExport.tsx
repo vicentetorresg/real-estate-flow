@@ -1,6 +1,8 @@
 'use client';
 import React, { useRef, useState } from 'react';
 
+const ASESORES = ['Diego Sánchez', 'Cristóbal Sepúlveda', 'Matías Bertelsen', 'Vicente Torres'];
+
 // ─── Minimal types (mirror page.tsx) ─────────────────────────
 interface SimulationParams {
   projectName: string; commune: string; deliveryType: string; constructionMonths: number;
@@ -14,7 +16,7 @@ interface SimulationParams {
   parkingCount: number; parkingValueUF: number; parkingBonoPie: boolean;
   storageCount: number; storageValueUF: number; storageBonoPie: boolean;
   guaranteedRentEnabled: boolean; guaranteedRentMonths: number; guaranteedRentCLP: number;
-  reserveFundUF: number;
+  reserveFundUF: number; operationalCostsCLP: number;
 }
 interface ScenarioResult {
   salePriceUF: number; salePriceCLP: number; netEquityCLP: number;
@@ -55,7 +57,10 @@ function PdfTemplate({ p, R, clientName, clientRut, asesor }: {
   const today = new Date();
   const todayLabel = `${today.getDate()} ${MS[today.getMonth()]} ${today.getFullYear()}`;
   const netMonthly = R.netMonthlyRentCLP - R.monthlyPaymentCLP;
-  const pieTotal = R.clientPieUF * p.ufValueCLP;
+  // Inversión inicial = pie contado + gastos operacionales + fondo de reserva
+  const pieUpfrontCLP = R.clientPieUpfrontUF * p.ufValueCLP;
+  const inversionInicial = pieUpfrontCLP + p.operationalCostsCLP + (p.reserveFundUF * p.ufValueCLP);
+  const soloGastos = R.clientPieUF === 0 && p.operationalCostsCLP > 0;
 
   const ROW: React.CSSProperties = { display: 'flex', gap: 0 };
   const SEC_TITLE: React.CSSProperties = {
@@ -137,9 +142,11 @@ function PdfTemplate({ p, R, clientName, clientRut, asesor }: {
             note: `UF ${p.ufValueCLP.toLocaleString('es-CL')} hoy`, bg: '#fff', border: '#dbeafe',
           },
           {
-            icon: '💰', label: 'Tu Inversión Inicial', main: fCLPFull(pieTotal),
-            sub: fUF(R.clientPieUF, 1),
-            note: `Pie ${fPct(R.totalPiePct)} · Crédito ${fPct(p.financingPercent, 0)}`, bg: '#eff6ff', border: '#bfdbfe',
+            icon: '💰', label: soloGastos ? 'Lo que necesitas al escriturar' : 'Tu Inversión Inicial',
+            main: fCLPFull(inversionInicial),
+            sub: soloGastos ? `Gastos operacionales del crédito` : fUF(R.clientPieUF, 1),
+            note: soloGastos ? `Pie cubierto por bono · Crédito ${fPct(p.financingPercent, 0)}` : `Pie ${fPct(R.totalPiePct)} · Crédito ${fPct(p.financingPercent, 0)}`,
+            bg: '#eff6ff', border: '#bfdbfe',
           },
           {
             icon: '📊', label: 'Flujo Mensual Estimado', main: fCLPFull(netMonthly),
@@ -352,9 +359,14 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
     try {
       const html2canvas = (await import('html2canvas')).default;
       const jsPDF = (await import('jspdf')).default;
-      const canvas = await html2canvas(templateRef.current, {
+      const el = templateRef.current;
+      const canvas = await html2canvas(el, {
         scale: 2, useCORS: true, logging: false,
         backgroundColor: '#ffffff',
+        width: el.scrollWidth,
+        height: el.scrollHeight,
+        windowWidth: el.scrollWidth,
+        windowHeight: el.scrollHeight,
       });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -439,7 +451,10 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
               </div>
               <div>
                 <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 5 }}>Asesor</p>
-                <input value={asesor} onChange={e => setAsesor(e.target.value)} style={INPUT} placeholder="Nombre del asesor" />
+                <select value={asesor} onChange={e => setAsesor(e.target.value)} style={INPUT}>
+                  <option value="">— Seleccionar asesor —</option>
+                  {ASESORES.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
               </div>
             </div>
 
