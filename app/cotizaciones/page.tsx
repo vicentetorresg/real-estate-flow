@@ -194,6 +194,22 @@ export default function CotizacionesPage() {
   const [resending, setResending]   = useState<Cotizacion | null>(null);
   const [sentId, setSentId]         = useState<string | null>(null);
   const [copiedId, setCopiedId]     = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Eliminar esta cotización del historial?')) return;
+    setDeletingId(id);
+    try {
+      await fetch('/api/cotizaciones', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      setData(prev => prev.filter(c => c.id !== id));
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   // Restore session from localStorage
   useEffect(() => {
@@ -392,6 +408,15 @@ export default function CotizacionesPage() {
                       }}>
                         📧 Reenviar
                       </button>
+                      {role === 'admin' && (
+                        <button onClick={() => handleDelete(c.id)} disabled={deletingId === c.id} style={{
+                          ...BTN, padding: '5px 10px', fontSize: 11,
+                          background: '#fff1f2', color: '#dc2626', border: '1px solid #fecaca',
+                          opacity: deletingId === c.id ? 0.5 : 1,
+                        }}>
+                          {deletingId === c.id ? '...' : '🗑'}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

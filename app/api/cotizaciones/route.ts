@@ -23,6 +23,15 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(data ?? []);
 }
 
+export async function DELETE(req: NextRequest) {
+  const { id } = await req.json();
+  if (!id) return NextResponse.json({ error: 'Falta id' }, { status: 400 });
+  const sb = getSupabase();
+  const { error } = await sb.from('sim_cotizaciones').delete().eq('id', id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const sb = getSupabase();
