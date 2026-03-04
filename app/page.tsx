@@ -410,57 +410,84 @@ function ChartTip({ active, payload, label }: { active?: boolean; payload?: TTP[
   );
 }
 
-function ScenarioCard({ sc, label, pct, color, params, analysisYears }: {
-  sc: ScenarioResult; label: string; pct: number; color: 'blue' | 'sky';
-  params: SimulationParams; analysisYears: number;
-}) {
-  const c = color === 'blue'
-    ? { bg: '#eff6ff', border: '#93c5fd', accent: '#1d4ed8', badge: '#dbeafe', badgeText: '#1e40af' }
-    : { bg: '#f0f9ff', border: '#7dd3fc', accent: '#0284c7', badge: '#e0f2fe', badgeText: '#0369a1' };
+function ScenariosComparison({ R, p }: { R: SimulationResult; p: SimulationParams }) {
+  const escrituraMes = addMonths(p.startMonth, p.startYear,
+    p.deliveryType === 'future' ? p.constructionMonths : 0);
+  const { month: sm, year: sy } = addMonths(escrituraMes.month, escrituraMes.year, p.analysisYears * 12);
+  const ventaLabel = `Venta ${ML[sm]} ${sy}`;
 
-  // Fecha de venta = from escritura + analysisYears
-  const escrituraMes = addMonths(params.startMonth, params.startYear, params.deliveryType === 'future' ? params.constructionMonths : 0);
-  const { month: sm, year: sy } = addMonths(escrituraMes.month, escrituraMes.year, analysisYears * 12);
+  const s1 = R.scenario1;
+  const s2 = R.scenario2;
 
-  const Row = ({ l, v, bold }: { l: string; v: string; bold?: boolean }) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #dbeafe' }}>
-      <span style={{ fontSize: 11, color: '#6b93c4' }}>{l}</span>
-      <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: bold ? 700 : 600, color: bold ? c.accent : '#0f2957' }}>{v}</span>
-    </div>
-  );
+  type RowDef = { label: string; v1: string; v2: string; bold?: boolean; section?: boolean };
+  const rows: RowDef[] = [
+    { label: 'Plusvalía', v1: `+${p.appreciationScenario1Percent}%`, v2: `+${p.appreciationScenario2Percent}%`, bold: true },
+    { label: 'Precio de venta', v1: fUF(s1.salePriceUF, 0), v2: fUF(s2.salePriceUF, 0) },
+    { label: '', v1: fCLP(s1.salePriceCLP, false), v2: fCLP(s2.salePriceCLP, false) },
+    { label: 'Deuda pendiente', v1: fUF(s1.outstandingBalanceUF, 0), v2: fUF(s2.outstandingBalanceUF, 0) },
+    { label: 'Equity bruto', v1: fCLP(s1.grossEquityCLP, false), v2: fCLP(s2.grossEquityCLP, false) },
+    { label: `Gastos venta (${p.saleCostPercent}%)`, v1: `-${fCLP(s1.saleCostsCLP, false)}`, v2: `-${fCLP(s2.saleCostsCLP, false)}` },
+    { label: 'Patrimonio neto venta', v1: fCLP(s1.netEquityCLP, false), v2: fCLP(s2.netEquityCLP, false), bold: true },
+    { label: 'Flujo acumulado', v1: fCLP(s1.cumulativeCashFlow, false), v2: fCLP(s2.cumulativeCashFlow, false) },
+    { label: 'Total invertido', v1: `-${fCLP(s1.totalInvested, false)}`, v2: `-${fCLP(s2.totalInvested, false)}` },
+    { label: 'Retorno total neto', v1: fCLP(s1.totalReturn, false), v2: fCLP(s2.totalReturn, false), bold: true },
+    { label: 'ROI total', v1: fPct(s1.roiPercent, 0), v2: fPct(s2.roiPercent, 0), bold: true },
+    { label: 'ROI anualizado', v1: fPct(s1.annualizedRoiPercent, 1), v2: fPct(s2.annualizedRoiPercent, 1) },
+    { label: 'Equity múltiplo', v1: `${isFinite(s1.equityMultiple) ? s1.equityMultiple.toFixed(1) : '∞'}x`, v2: `${isFinite(s2.equityMultiple) ? s2.equityMultiple.toFixed(1) : '∞'}x` },
+  ];
 
   return (
-    <div style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 14, padding: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: c.accent }}>{label}</span>
-        <span style={{ fontSize: 10, fontWeight: 700, background: c.badge, color: c.badgeText, padding: '3px 10px', borderRadius: 20 }}>
-          +{pct}% plusvalía
-        </span>
-      </div>
-      <p style={{ fontSize: 10, color: '#93b4d4', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Venta {ML[sm]} {sy}</p>
-      <p style={{ fontSize: 26, fontWeight: 900, color: c.accent, margin: '3px 0 2px' }}>{fCLP(sc.netEquityCLP, false)}</p>
-      <p style={{ fontSize: 11, color: '#93b4d4', marginBottom: 12 }}>Patrimonio neto al vender</p>
-      <Row l="Precio de venta" v={`${fUF(sc.salePriceUF, 0)} · ${fCLP(sc.salePriceCLP, false)}`} />
-      <Row l="Deuda pendiente" v={`${fUF(sc.outstandingBalanceUF, 0)} · ${fCLP(sc.outstandingBalanceCLP, false)}`} />
-      <Row l="Equity bruto" v={fCLP(sc.grossEquityCLP, false)} />
-      <Row l={`Gastos venta (${params.saleCostPercent}%)`} v={`-${fCLP(sc.saleCostsCLP, false)}`} />
-      <Row l="Patrimonio neto venta" v={fCLP(sc.netEquityCLP, false)} bold />
-      <Row l="Flujo acumulado" v={fCLP(sc.cumulativeCashFlow, false)} />
-      <Row l="Total invertido (negativo)" v={`-${fCLP(sc.totalInvested, false)}`} />
-      <Row l="Retorno total" v={fCLP(sc.totalReturn, false)} bold />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 14 }}>
+    <div style={{ ...CARD, overflow: 'hidden' }}>
+      {/* Header */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', background: '#1d4ed8', borderBottom: '2px solid #1e40af' }}>
+        <div style={{ padding: '10px 14px' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Comparación de Escenarios</p>
+          <p style={{ fontSize: 10, color: '#bfdbfe' }}>{ventaLabel}</p>
+        </div>
         {[
-          { l: 'ROI Total', v: fPct(sc.roiPercent, 0), s: `${analysisYears} años` },
-          { l: 'ROI Anual', v: fPct(sc.annualizedRoiPercent, 1), s: 'anualizado' },
-          { l: 'Equity ×', v: `${isFinite(sc.equityMultiple) ? sc.equityMultiple.toFixed(1) : '∞'}x`, s: 'múltiplo' },
-        ].map(({ l, v, s }) => (
-          <div key={l} style={{ background: '#fff', borderRadius: 10, padding: '9px 6px', textAlign: 'center', border: `1px solid ${c.border}` }}>
-            <p style={{ fontSize: 9, color: '#93b4d4', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 1 }}>{l}</p>
-            <p style={{ fontSize: 14, fontWeight: 800, color: c.accent }}>{v}</p>
-            <p style={{ fontSize: 9, color: '#b3cfe8' }}>{s}</p>
+          { label: 'Escenario Conservador', pct: p.appreciationScenario1Percent, value: fCLP(s1.netEquityCLP, false), color: '#60a5fa' },
+          { label: 'Escenario Optimista',   pct: p.appreciationScenario2Percent, value: fCLP(s2.netEquityCLP, false), color: '#34d399' },
+        ].map(({ label, pct, value, color }) => (
+          <div key={label} style={{ padding: '10px 14px', borderLeft: '1px solid #1e40af', textAlign: 'right' }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</p>
+            <p style={{ fontSize: 10, color: '#93c5fd' }}>+{pct}% plusvalía</p>
+            <p style={{ fontSize: 20, fontWeight: 900, color, lineHeight: 1.2 }}>{value}</p>
+            <p style={{ fontSize: 9, color: '#93c5fd' }}>patrimonio neto</p>
           </div>
         ))}
       </div>
+
+      {/* Rows */}
+      {rows.map((row, i) => (
+        <div key={i} style={{
+          display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
+          background: row.bold ? '#eff6ff' : i % 2 === 0 ? '#fff' : '#f8fbff',
+          borderBottom: '1px solid #dbeafe',
+        }}>
+          <div style={{ padding: '6px 14px', fontSize: 11, color: '#6b93c4', fontWeight: row.bold ? 700 : 400 }}>
+            {row.label}
+          </div>
+          {[row.v1, row.v2].map((v, j) => {
+            const isNeg = v.startsWith('-');
+            const isBig = row.bold && !v.startsWith('+') && !v.startsWith('-') && !v.endsWith('x') && !v.endsWith('%');
+            const color = row.label === 'Plusvalía' ? (j === 0 ? '#1d4ed8' : '#0284c7')
+              : isNeg ? '#dc2626'
+              : isBig ? (j === 0 ? '#1d4ed8' : '#0284c7')
+              : row.bold ? '#0f2957'
+              : '#334d6e';
+            return (
+              <div key={j} style={{
+                padding: '6px 14px', fontSize: 11, fontFamily: 'monospace',
+                fontWeight: row.bold ? 700 : 500,
+                color, textAlign: 'right',
+                borderLeft: '1px solid #dbeafe',
+              }}>
+                {v}
+              </div>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
@@ -1067,10 +1094,7 @@ export default function Home() {
             </div>
 
             {/* Escenarios */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <ScenarioCard sc={R.scenario1} label="Escenario Conservador" pct={p.appreciationScenario1Percent} color="blue" params={p} analysisYears={p.analysisYears} />
-              <ScenarioCard sc={R.scenario2} label="Escenario Optimista" pct={p.appreciationScenario2Percent} color="sky" params={p} analysisYears={p.analysisYears} />
-            </div>
+            <ScenariosComparison R={R} p={p} />
 
             {/* TABLA PRINCIPAL */}
             <div>
