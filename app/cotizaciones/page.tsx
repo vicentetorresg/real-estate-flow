@@ -74,25 +74,43 @@ function ResendModal({ cotiz, onClose, onSent }: {
   onClose: () => void;
   onSent: () => void;
 }) {
-  const [email, setEmail]       = useState(cotiz.client_email);
+  const [email, setEmail]           = useState(cotiz.client_email);
   const [clientName, setClientName] = useState(cotiz.client_name || '');
   const [clientRut, setClientRut]   = useState(cotiz.client_rut || '');
-  const [asesor, setAsesor]     = useState(cotiz.asesor_name || '');
-  const [sending, setSending]   = useState(false);
-  const [error, setError]       = useState('');
+  const [asesor, setAsesor]         = useState(cotiz.asesor_name || '');
+  const [sending, setSending]       = useState(false);
+  const [error, setError]           = useState('');
+
+  // Genera una nueva URL con los datos del nuevo cliente incrustados
+  function buildNewLink(): string {
+    try {
+      const url = new URL(cotiz.share_link);
+      const s = url.searchParams.get('s');
+      if (!s) return cotiz.share_link;
+      const params = JSON.parse(atob(s));
+      params.clientName  = clientName || '';
+      params.clientRut   = clientRut  || '';
+      params.clientEmail = email      || '';
+      url.searchParams.set('s', btoa(JSON.stringify(params)));
+      return url.toString();
+    } catch {
+      return cotiz.share_link;
+    }
+  }
 
   const handle = async () => {
     if (!email) return;
     setSending(true); setError('');
     try {
+      const newLink = buildNewLink();
       const r = await fetch('/api/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: email,
           clientName:  clientName || undefined,
-          clientRut:   clientRut || undefined,
-          shareLink:   cotiz.share_link,
+          clientRut:   clientRut  || undefined,
+          shareLink:   newLink,
           mode:        cotiz.mode,
           projectName: cotiz.project_name,
           asesorName:  asesor || undefined,
@@ -142,7 +160,7 @@ function ResendModal({ cotiz, onClose, onSent }: {
         />
 
         <div style={{ background: '#f0f7ff', borderRadius: 8, padding: '8px 12px', marginBottom: 16, fontSize: 11, color: '#4a7abf' }}>
-          Modo: <strong>{cotiz.mode === 'static' ? '📋 Solo visualización' : '🎮 Interactiva'}</strong> · Link original conservado
+          Modo: <strong>{cotiz.mode === 'static' ? '📋 Solo visualización' : '🎮 Interactiva'}</strong> · Se generará un link nuevo con los datos del cliente
         </div>
 
         <button onClick={handle} disabled={!email || sending} style={{
