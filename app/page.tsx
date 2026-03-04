@@ -457,7 +457,7 @@ const DEFAULTS: SimulationParams = {
   propertyValueUF: 3000, commune: 'Cerrillos',
   ufValueCLP: 38500, ufAnnualGrowthPercent: 3.5,
   deliveryType: 'immediate', constructionMonths: 24,
-  financingPercent: 90, annualRatePercent: 4.0, loanTermYears: 30, gracePeriodMonths: 3, operationalCostsCLP: 0,
+  financingPercent: 90, annualRatePercent: 4.0, loanTermYears: 30, gracePeriodMonths: 3, operationalCostsCLP: 2000000,
   bonoPiePercent: 10,
   clientPieUpfrontPct: 0,   // con bono pie = 10%, cliente no paga nada
   clientPieCuotasCount: 24,
@@ -1386,8 +1386,19 @@ export default function Home() {
                   <p style={{ fontSize: 10, fontWeight: 700, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Crédito hipotecario</p>
                   <Slider label="% Financiamiento banco" value={p.financingPercent} min={50} max={95} step={5}
                     display={`${p.financingPercent}% → ${fUF(R.loanUF, 0)}`} onChange={v => set('financingPercent', v)} />
-                  <Slider label="Tasa de interés anual" value={p.annualRatePercent} min={2} max={12} step={0.25}
-                    display={`${p.annualRatePercent.toFixed(2)}%`} onChange={v => set('annualRatePercent', v)} />
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, color: '#4a7abf' }}>Tasa CAE anual (%)</span>
+                      <span style={{ fontSize: 10, color: '#6b93c4' }}>ej: 4.00</span>
+                    </div>
+                    <input
+                      type="number" step="0.01" min="0" max="30"
+                      style={INPUT_S}
+                      value={p.annualRatePercent}
+                      onChange={e => set('annualRatePercent', parseFloat(e.target.value) || 0)}
+                      inputMode="decimal"
+                    />
+                  </div>
                   <Slider label="Plazo crédito" value={p.loanTermYears} min={5} max={30} step={5}
                     display={`${p.loanTermYears} años`} onChange={v => set('loanTermYears', v)} />
                   <Slider label="Período de gracia post-entrega" value={p.gracePeriodMonths} min={0} max={12} step={1}
