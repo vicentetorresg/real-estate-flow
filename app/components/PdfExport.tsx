@@ -72,7 +72,7 @@ function PdfTemplate({ p, R, clientName, clientRut, asesor }: {
   return (
     <div style={{
       width: 900, fontFamily: 'system-ui, -apple-system, sans-serif',
-      background: '#fff', color: '#0f2957',
+      background: '#fff', color: '#0f2957', display: 'block', margin: 0, padding: 0,
     }}>
 
       {/* ── HEADER ───────────────────────────────── */}
@@ -85,7 +85,7 @@ function PdfTemplate({ p, R, clientName, clientRut, asesor }: {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
               width: 40, height: 40, background: '#fff', borderRadius: 10,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              lineHeight: '40px', textAlign: 'center',
               fontWeight: 900, fontSize: 20, color: '#1d4ed8',
             }}>P</div>
             <div>
@@ -97,6 +97,7 @@ function PdfTemplate({ p, R, clientName, clientRut, asesor }: {
           <div style={{
             background: '#ffffff20', border: '1px solid #ffffff40',
             borderRadius: 20, padding: '6px 16px', fontSize: 11, color: '#e0f2fe', fontWeight: 600,
+            lineHeight: 1.4,
           }}>
             Simulación de Inversión · {todayLabel}
           </div>
@@ -372,13 +373,13 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
       const html2canvas = (await import('html2canvas')).default;
       const jsPDF = (await import('jspdf')).default;
       const el = templateRef.current;
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
       const canvas = await html2canvas(el, {
         scale: 2, useCORS: true, logging: false,
         backgroundColor: '#ffffff',
-        width: el.scrollWidth,
-        height: el.scrollHeight,
-        windowWidth: el.scrollWidth,
-        windowHeight: el.scrollHeight,
+        width: w, height: h,
+        windowWidth: w, windowHeight: h,
       });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -488,8 +489,8 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
       )}
 
       {/* Hidden PDF template (off-screen) */}
-      <div style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1 }}>
-        <div ref={templateRef}>
+      <div style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1, display: 'inline-block' }}>
+        <div ref={templateRef} style={{ display: 'inline-block' }}>
           <PdfTemplate p={p} R={R} clientName={clientName} clientRut={clientRut} asesor={asesor} />
         </div>
       </div>
