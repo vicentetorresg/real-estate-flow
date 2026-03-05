@@ -379,31 +379,10 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
       });
       const imgData = canvas.toDataURL('image/png');
       const pageW = 215.9; // Letter width in mm
-      const pageH = 279.4; // Letter height in mm
-      const ratio = pageW / canvas.width;
-      const imgH = canvas.height * ratio;
-
-      let pdf;
-      if (imgH <= pageH) {
-        // Use exact content height to avoid blank space at bottom
-        pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pageW, imgH] });
-        pdf.addImage(imgData, 'PNG', 0, 0, pageW, imgH);
-      } else {
-        // Multi-page
-        pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pageW, pageH] });
-        let y = 0;
-        while (y < canvas.height) {
-          if (y > 0) pdf.addPage();
-          const sliceH = Math.min(pageH / ratio, canvas.height - y);
-          const sliceCanvas = document.createElement('canvas');
-          sliceCanvas.width = canvas.width;
-          sliceCanvas.height = sliceH;
-          const ctx = sliceCanvas.getContext('2d')!;
-          ctx.drawImage(canvas, 0, -y);
-          pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', 0, 0, pageW, sliceH * ratio);
-          y += sliceH;
-        }
-      }
+      const imgH = canvas.height * (pageW / canvas.width);
+      // Single page sized to content height
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pageW, imgH] });
+      pdf.addImage(imgData, 'PNG', 0, 0, pageW, imgH);
 
       const filename = `Proppi_${(p.projectName || 'Simulacion').replace(/\s+/g, '_')}_${(clientName || 'Cliente').replace(/\s+/g, '_')}.pdf`;
       pdf.save(filename);
