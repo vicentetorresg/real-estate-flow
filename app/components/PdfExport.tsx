@@ -362,35 +362,39 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
     setOpen(true);
   };
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     if (!templateRef.current) return;
     setLoading(true);
-    try {
-      const html2canvas = (await import('html2canvas')).default;
-      const jsPDF = (await import('jspdf')).default;
-      const el = templateRef.current;
-      const w = el.offsetWidth;
-      const h = el.offsetHeight;
-      const canvas = await html2canvas(el, {
-        scale: 4, useCORS: true, logging: false,
-        backgroundColor: '#ffffff',
-        width: w, height: h,
-        windowWidth: w, windowHeight: h,
-      });
-      const imgData = canvas.toDataURL('image/png');
-      const pageW = 215.9; // Letter width in mm
-      const imgH = canvas.height * (pageW / canvas.width);
-      // Single page sized to content height
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pageW, imgH] });
-      pdf.addImage(imgData, 'PNG', 0, 0, pageW, imgH);
 
-      const filename = `Proppi_${(p.projectName || 'Simulacion').replace(/\s+/g, '_')}_${(clientName || 'Cliente').replace(/\s+/g, '_')}.pdf`;
-      pdf.save(filename);
-    } catch (e) {
-      console.error(e);
-    }
-    setLoading(false);
-    setOpen(false);
+    const el = templateRef.current;
+    const filename = `Proppi_${(p.projectName || 'Simulacion').replace(/\s+/g, '_')}_${(clientName || 'Cliente').replace(/\s+/g, '_')}`;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) { setLoading(false); return; }
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${filename}</title>
+  <base href="${window.location.origin}/">
+  <style>
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #fff; }
+    @page { margin: 0; size: auto; }
+  </style>
+</head>
+<body>${el.outerHTML}</body>
+</html>`);
+    printWindow.document.close();
+
+    // Wait for images then print
+    setTimeout(() => {
+      printWindow.print();
+      setTimeout(() => printWindow.close(), 500);
+      setLoading(false);
+      setOpen(false);
+    }, 800);
   };
 
   const INPUT: React.CSSProperties = {
@@ -459,7 +463,7 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
                 background: loading ? '#93c5fd' : 'linear-gradient(135deg,#1d4ed8,#0284c7)',
                 color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading ? 'wait' : 'pointer',
               }}>
-                {loading ? '⏳ Generando...' : '📄 Descargar PDF'}
+                {loading ? '⏳ Abriendo...' : '📄 Generar PDF'}
               </button>
             </div>
           </div>
