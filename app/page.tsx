@@ -4,7 +4,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import PdfExport from './components/PdfExport';
 import RutInput from './components/RutInput';
 import {
-  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
+  ComposedChart, Bar, Cell, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine, Area, AreaChart,
 } from 'recharts';
 
@@ -692,20 +692,72 @@ function ChartTip({ active, payload, label }: { active?: boolean; payload?: TTP[
 
 const ASESORES = ['Diego Sánchez', 'Cristóbal Sepúlveda', 'Matías Bertelsen', 'Vicente Torres'];
 
-function SendModal({ p, getShareLink, onClose, defaultAsesor = '', onAsesorChange }: {
-  p: SimulationParams; getShareLink: (mode: 'static' | 'dynamic') => string; onClose: () => void;
+function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorChange }: {
+  p: SimulationParams; R: SimulationResult; getShareLink: (mode: 'static' | 'dynamic') => string; onClose: () => void;
   defaultAsesor?: string; onAsesorChange?: (v: string) => void;
 }) {
-  const [step, setStep] = React.useState<'mode' | 'send'>('mode');
+  const [step, setStep] = React.useState<'mode' | 'insights' | 'send' | 'sent'>('mode');
   const [mode, setMode] = React.useState<'static' | 'dynamic'>('static');
   const [to, setTo] = React.useState(p.clientEmail || '');
   const [asesor, setAsesor] = React.useState(defaultAsesor);
   const handleSetAsesor = (v: string) => { setAsesor(v); onAsesorChange?.(v); };
   const [sending, setSending] = React.useState(false);
-  const [sent, setSent] = React.useState(false);
   const [error, setError] = React.useState('');
   const [copied, setCopied] = React.useState(false);
   const shareLink = getShareLink(mode);
+
+  const [insightsText, setInsightsText] = React.useState('');
+  const [insightsLoading, setInsightsLoading] = React.useState(false);
+  const [includeInsights, setIncludeInsights] = React.useState<boolean | null>(null);
+  const insightsScrollRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (step !== 'insights') return;
+    if (insightsText) return; // already generated
+    let cancelled = false;
+    setInsightsLoading(true);
+    const last = R.monthlyData[R.monthlyData.length - 1];
+    const r = {
+      clientPieUF: R.clientPieUF,
+      monthlyPaymentCLP: R.monthlyPaymentCLP,
+      netMonthlyRentCLP: R.netMonthlyRentCLP,
+      capRatePercent: R.capRatePercent,
+      totalNegativeCashFlow: R.totalNegativeCashFlow,
+      avgMonthlyCashFlow: R.avgMonthlyCashFlow,
+      totalTableMonths: R.totalTableMonths,
+      positiveMonths: R.monthlyData.slice(1).filter(d => d.netCashFlow > 0).length,
+      negativeMonths: R.monthlyData.slice(1).filter(d => d.netCashFlow < 0).length,
+      lastCumulativeCashFlow: last.cumulativeCashFlow,
+      totalApprec1: R.totalApprec1,
+      totalApprec2: R.totalApprec2,
+      scenario1: R.scenario1,
+      scenario2: R.scenario2,
+    };
+    (async () => {
+      try {
+        const res = await fetch('/api/insights', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p, r }),
+        });
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+        while (!cancelled) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          setInsightsText(prev => prev + decoder.decode(value));
+        }
+      } catch {}
+      if (!cancelled) setInsightsLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [step]);
+
+  React.useEffect(() => {
+    if (insightsScrollRef.current) {
+      insightsScrollRef.current.scrollTop = insightsScrollRef.current.scrollHeight;
+    }
+  }, [insightsText]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(shareLink);
@@ -719,28 +771,45 @@ function SendModal({ p, getShareLink, onClose, defaultAsesor = '', onAsesorChang
       const res = await fetch('/api/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, clientName: p.clientName, clientRut: p.clientRut, shareLink, mode, projectName: p.projectName, asesorName: asesor, commune: p.commune }),
+        body: JSON.stringify({ to, clientName: p.clientName, clientRut: p.clientRut, shareLink, mode, projectName: p.projectName, asesorName: asesor, commune: p.commune, insights: includeInsights ? insightsText : undefined }),
       });
       if (!res.ok) throw new Error('Error');
-      setSent(true);
+      setStep('sent');
     } catch {
       setError('No se pudo enviar. Revisa el email e intenta de nuevo.');
     } finally { setSending(false); }
   };
 
+  function renderInsights(text: string) {
+    return text.split('\n').map((line, i) => {
+      if (line.startsWith('## ')) {
+        return (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, marginBottom: 4 }}>
+            <span style={{ width: 3, height: 14, background: '#1d4ed8', borderRadius: 2, display: 'inline-block', flexShrink: 0 }} />
+            <span style={{ fontWeight: 700, color: '#0f2957', fontSize: 12 }}>{line.slice(3)}</span>
+          </div>
+        );
+      }
+      if (line.trim() === '') return <div key={i} style={{ height: 4 }} />;
+      return <p key={i} style={{ fontSize: 11, color: '#334d6e', lineHeight: 1.65, margin: 0 }}>{line}</p>;
+    });
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#00000070', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 520, boxShadow: '0 24px 80px #0004', overflow: 'hidden' }}>
+      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: step === 'insights' ? 620 : 520, boxShadow: '0 24px 80px #0004', overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
         {/* Modal header */}
-        <div style={{ background: 'linear-gradient(135deg, #1d4ed8, #7c3aed)', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ background: 'linear-gradient(135deg, #1d4ed8, #7c3aed)', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div>
-            <h2 style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 2 }}>📧 Enviar simulación</h2>
+            <h2 style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 2 }}>
+              {step === 'insights' ? '✨ Análisis IA' : '📧 Enviar simulación'}
+            </h2>
             {p.clientName && <p style={{ fontSize: 12, color: '#c4b5fd' }}>Para: <strong style={{ color: '#fff' }}>{p.clientName}</strong>{p.clientRut ? ` · ${p.clientRut}` : ''}</p>}
           </div>
           <button onClick={onClose} style={{ background: '#ffffff20', border: 'none', cursor: 'pointer', width: 32, height: 32, borderRadius: 8, color: '#fff', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
 
-        <div style={{ padding: 24 }}>
+        <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
           {step === 'mode' ? (
             <>
               <p style={{ fontSize: 13, fontWeight: 700, color: '#0f2957', marginBottom: 4 }}>
@@ -774,29 +843,74 @@ function SendModal({ p, getShareLink, onClose, defaultAsesor = '', onAsesorChang
                   </button>
                 ))}
               </div>
-              <button onClick={() => setStep('send')} style={{
+              <button onClick={() => setStep('insights')} style={{
                 width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', cursor: 'pointer',
                 background: 'linear-gradient(135deg, #1d4ed8, #7c3aed)', color: '#fff', fontSize: 13, fontWeight: 700,
               }}>
-                Siguiente: ingresar email →
+                Siguiente: análisis IA ✨
               </button>
             </>
-          ) : sent ? (
+          ) : step === 'insights' ? (
+            <>
+              <button onClick={() => setStep('mode')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#6b93c4', marginBottom: 12, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                ← Cambiar tipo ({mode === 'static' ? '📋 Solo visualización' : '🎮 Interactiva'})
+              </button>
+              <div style={{ fontSize: 11, color: insightsLoading ? '#7c3aed' : '#15803d', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+                {insightsLoading
+                  ? '✦ Generando análisis personalizado...'
+                  : '✓ Análisis listo — previsualízalo antes de enviarlo'}
+              </div>
+              <div ref={insightsScrollRef} style={{
+                background: '#f8fbff', border: '1px solid #dbeafe', borderRadius: 12,
+                padding: '14px 16px', marginBottom: 16, maxHeight: 340, overflowY: 'auto', minHeight: 100,
+              }}>
+                {insightsText
+                  ? renderInsights(insightsText)
+                  : <p style={{ fontSize: 11, color: '#93b4d4', textAlign: 'center', paddingTop: 30 }}>Generando...</p>}
+              </div>
+              {insightsLoading ? (
+                <button disabled style={{ width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: '#c4b5fd', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'not-allowed' }}>
+                  Generando análisis...
+                </button>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <button onClick={() => { setIncludeInsights(false); setStep('send'); }} style={{
+                    padding: '12px 0', borderRadius: 10, border: '1px solid #dbeafe',
+                    background: '#f8fbff', color: '#6b93c4', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  }}>
+                    Enviar sin análisis
+                  </button>
+                  <button onClick={() => { setIncludeInsights(true); setStep('send'); }} style={{
+                    padding: '12px 0', borderRadius: 10, border: 'none',
+                    background: 'linear-gradient(135deg, #1d4ed8, #7c3aed)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  }}>
+                    ✨ Incluir en el email →
+                  </button>
+                </div>
+              )}
+            </>
+          ) : step === 'sent' ? (
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
               <p style={{ fontSize: 40, marginBottom: 12 }}>✅</p>
               <p style={{ fontSize: 16, fontWeight: 800, color: '#15803d', marginBottom: 6 }}>¡Simulación enviada!</p>
-              <p style={{ fontSize: 12, color: '#6b93c4', marginBottom: 20 }}>
+              <p style={{ fontSize: 12, color: '#6b93c4', marginBottom: 6 }}>
                 {p.clientName ? <><strong>{p.clientName}</strong> recibirá</> : 'Se envió'} la versión {mode === 'static' ? 'de solo visualización 📋' : 'interactiva 🎮'} a <strong>{to}</strong>
               </p>
+              {includeInsights && <p style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600, marginBottom: 20 }}>✨ Con análisis IA incluido</p>}
               <button onClick={onClose} style={{ padding: '10px 28px', borderRadius: 10, border: 'none', cursor: 'pointer', background: '#1d4ed8', color: '#fff', fontSize: 12, fontWeight: 700 }}>
                 Cerrar
               </button>
             </div>
           ) : (
             <>
-              <button onClick={() => setStep('mode')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#6b93c4', marginBottom: 16, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-                ← Cambiar tipo ({mode === 'static' ? '📋 Solo visualización' : '🎮 Interactiva'})
+              <button onClick={() => setStep('insights')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#6b93c4', marginBottom: 14, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                ← Volver al análisis
               </button>
+              {includeInsights && (
+                <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 10, padding: '8px 14px', marginBottom: 14, fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>
+                  ✨ El análisis IA se incluirá en el email
+                </div>
+              )}
               <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 6 }}>Link único generado para este cliente:</p>
               <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
                 <input readOnly value={shareLink} style={{ ...INPUT_S, flex: 1, fontSize: 10, fontFamily: 'monospace' }} onClick={e => (e.target as HTMLInputElement).select()} />
@@ -1001,6 +1115,11 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
     { label: 'Flujo neto del mes', type: 'result', fn: d => d.netCashFlow },
     { label: 'Flujo acumulado', type: 'result', fn: d => d.cumulativeCashFlow },
 
+    // ── GANANCIA TOTAL CON VENTA (siempre visible) ────────────
+    { label: 'GANANCIA TOTAL CON VENTA', type: 'section', fn: () => null },
+    { label: 'Resultado final (conservador)', type: 'result', fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.totalReturn : null },
+    { label: 'Resultado final (optimista)', type: 'result', fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.totalReturn : null },
+
     // ── BALANCE AL CIERRE (colapsable) ────────────────────────
     { label: 'BALANCE AL CIERRE', type: 'toggle', fn: () => null },
     ...(balanceOpen ? [
@@ -1014,9 +1133,6 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
       { label: 'Saldo deuda a cancelar', type: 'expense' as const, fn: (d: MonthlyData) => d.month === lastMonth ? -d.outstandingBalanceCLP : null },
       { label: `Patrimonio neto cons. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.netEquityCLP : null },
       { label: `Patrimonio neto opt. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.netEquityCLP : null },
-      { label: 'GANANCIA TOTAL CON VENTA', type: 'section' as const, fn: () => null },
-      { label: 'Resultado final (conservador)', type: 'result' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.totalReturn : null },
-      { label: 'Resultado final (optimista)', type: 'result' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.totalReturn : null },
     ] : []),
   ];
 
@@ -1999,10 +2115,11 @@ export default function Home() {
                     <YAxis tick={{ fontSize: 9, fill: '#93b4d4' }} tickFormatter={v => `$${(Math.abs(v) / 1000).toFixed(0)}k`} tickLine={false} axisLine={false} />
                     <Tooltip content={<ChartTip />} />
                     <ReferenceLine y={0} stroke="#93c5fd" strokeDasharray="4 4" />
-                    <Bar dataKey="Flujo neto" fill="#10b981" radius={[2, 2, 0, 0]} opacity={0.85} />
-                    <Line type="monotone" dataKey="Arr. neto" stroke="#2563eb" strokeWidth={2} dot={false} strokeDasharray="5 3" />
-                    <Line type="monotone" dataKey="Dividendo" stroke="#dc2626" strokeWidth={2} dot={false} strokeDasharray="5 3" />
-                    <Line type="monotone" dataKey="Cuota pie" stroke="#f59e0b" strokeWidth={2} dot={false} strokeDasharray="3 3" />
+                    <Bar dataKey="Flujo neto" radius={[2, 2, 0, 0]} opacity={0.9}>
+                      {chartData.map((entry, i) => (
+                        <Cell key={i} fill={entry['Flujo neto'] >= 0 ? '#10b981' : '#ef4444'} />
+                      ))}
+                    </Bar>
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -2122,7 +2239,7 @@ export default function Home() {
           </div>
         </div>
       </main>
-      {showSendModal && <SendModal p={p} getShareLink={getShareLink} onClose={() => setShowSendModal(false)} defaultAsesor={selectedAsesor} onAsesorChange={setSelectedAsesor} />}
+      {showSendModal && R && <SendModal p={p} R={R} getShareLink={getShareLink} onClose={() => setShowSendModal(false)} defaultAsesor={selectedAsesor} onAsesorChange={setSelectedAsesor} />}
       {showMap && <MapaInteractivoDynamic onClose={() => setShowMap(false)} />}
     </div>
   );

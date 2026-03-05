@@ -323,6 +323,11 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
     { label: 'FLUJO MENSUAL', type: 'section', fn: () => null },
     { label: 'Flujo neto del mes', type: 'result', fn: d => d.netCashFlow },
     { label: 'Flujo acumulado', type: 'result', fn: d => d.cumulativeCashFlow },
+    // ── GANANCIA TOTAL CON VENTA (siempre visible) ────────────
+    { label: 'GANANCIA TOTAL CON VENTA', type: 'section', fn: () => null },
+    { label: 'Resultado final (conservador)', type: 'result', fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.totalReturn : null },
+    { label: 'Resultado final (optimista)', type: 'result', fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.totalReturn : null },
+
     { label: 'BALANCE AL CIERRE', type: 'toggle', fn: () => null },
     ...(balanceOpen ? [
       { label: 'UF del período', type: 'balance' as const, fn: (d: MonthlyData) => d.ufValue },
@@ -335,9 +340,6 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
       { label: 'Saldo deuda a cancelar', type: 'expense' as const, fn: (d: MonthlyData) => d.month === lastMonth ? -d.outstandingBalanceCLP : null },
       { label: `Patrimonio neto cons. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.netEquityCLP : null },
       { label: `Patrimonio neto opt. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.netEquityCLP : null },
-      { label: 'GANANCIA TOTAL CON VENTA', type: 'section' as const, fn: () => null },
-      { label: 'Resultado final (conservador)', type: 'result' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.totalReturn : null },
-      { label: 'Resultado final (optimista)', type: 'result' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.totalReturn : null },
     ] : []),
   ];
 

@@ -5,7 +5,7 @@ const RESEND_API_KEY = 're_jBmmbDUG_59hD9hCgpFE7E1q1uKKVeJ4o';
 
 export async function POST(req: NextRequest) {
   const origin = new URL(req.url).origin;
-  const { to, clientName, clientRut, shareLink, mode, projectName, asesorName, resendOf, commune } = await req.json();
+  const { to, clientName, clientRut, shareLink, mode, projectName, asesorName, resendOf, commune, insights } = await req.json();
   const isStatic = mode === 'static';
 
   if (!to || !shareLink) {
@@ -21,6 +21,15 @@ export async function POST(req: NextRequest) {
     : asesorFirst
       ? `${asesorFirst} de Proppi te compartió tu simulación inmobiliaria`
       : 'Tu plan de inversión inmobiliaria personalizado — Proppi';
+
+  const insightsHtml = insights ? (() => {
+    const lines = insights.split('\n').map((line: string) => {
+      if (line.startsWith('## ')) return `<div style="font-size:13px;font-weight:700;color:#0f2957;margin-top:14px;margin-bottom:4px;border-left:3px solid #7c3aed;padding-left:10px;">${line.slice(3)}</div>`;
+      if (!line.trim()) return '<div style="height:4px;"></div>';
+      return `<p style="font-size:12px;color:#334d6e;line-height:1.7;margin:0;">${line}</p>`;
+    }).join('');
+    return `<div style="background:linear-gradient(135deg,#f5f3ff,#eff6ff);border-radius:14px;padding:22px 24px;margin-bottom:28px;border:1px solid #ddd6fe;"><p style="font-size:11px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 14px;">Análisis personalizado de tu inversión</p>${lines}</div>`;
+  })() : '';
 
   const html = `
 <!DOCTYPE html>
@@ -77,6 +86,8 @@ export async function POST(req: NextRequest) {
       </div>
 
       ${!isStatic ? '<p style="font-size:12px;background:#f5f3ff;color:#7c3aed;border-radius:8px;padding:10px 14px;margin:0 0 24px;">💡 Tu simulación es <strong>interactiva</strong> — puedes mover los parámetros (tasa, arriendo, plazo) y ver cómo cambian los números en tiempo real.</p>' : ''}
+
+      ${insightsHtml}
 
       <!-- CTA -->
       <div style="text-align:center;margin-bottom:30px;">
