@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import PdfExport, { generatePdfBase64 } from './components/PdfExport';
+import PdfExport from './components/PdfExport';
 import RutInput from './components/RutInput';
 import {
   ComposedChart, Bar, Cell, Line, XAxis, YAxis, CartesianGrid,
@@ -708,7 +708,6 @@ function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorCh
   const asesorObj = ASESORES.find(a => a.name === asesor) ?? null;
   const handleSetAsesor = (v: string) => { setAsesor(v); onAsesorChange?.(v); };
   const [sending, setSending] = React.useState(false);
-  const [sendingStep, setSendingStep] = React.useState<'pdf' | 'sending'>('pdf');
   const [error, setError] = React.useState('');
   const [copied, setCopied] = React.useState(false);
   const shareLink = getShareLink(mode);
@@ -783,16 +782,12 @@ function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorCh
 
   const handleSend = async () => {
     if (!to) return;
-    setSending(true); setSendingStep('pdf'); setError('');
+    setSending(true); setError('');
     try {
-      const pdfBase64Raw = await generatePdfBase64(p, R, p.clientName, p.clientRut, asesor).catch(() => null);
-      // Limit PDF to 3MB base64 to stay within Vercel's 4.5MB request limit
-      const pdfBase64 = pdfBase64Raw && pdfBase64Raw.length < 3_000_000 ? pdfBase64Raw : null;
-      setSendingStep('sending');
       const res = await fetch('/api/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, clientName: p.clientName, clientRut: p.clientRut, shareLink: clientShareLink, mode, projectName: p.projectName, asesorName: asesor, asesorEmail: asesorObj?.email ?? null, commune: p.commune, insights: insightsText || undefined, pdfBase64: pdfBase64 || undefined }),
+        body: JSON.stringify({ to, clientName: p.clientName, clientRut: p.clientRut, shareLink: clientShareLink, mode, projectName: p.projectName, asesorName: asesor, asesorEmail: asesorObj?.email ?? null, commune: p.commune, insights: insightsText || undefined }),
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
@@ -973,7 +968,7 @@ function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorCh
                 background: to && !sending ? 'linear-gradient(135deg, #1d4ed8, #7c3aed)' : '#c4b5fd',
                 color: '#fff', fontSize: 13, fontWeight: 700,
               }}>
-                {sending ? (sendingStep === 'pdf' ? '⏳ Generando PDF...' : '📤 Enviando...') : `📧 Enviar simulación${to ? ` a ${to}` : ''}`}
+                {sending ? '📤 Enviando...' : `📧 Enviar simulación${to ? ` a ${to}` : ''}`}
               </button>
               {error && <p style={{ fontSize: 11, color: '#dc2626', marginTop: 10, textAlign: 'center' }}>{error}</p>}
             </>

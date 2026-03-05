@@ -6,7 +6,7 @@ const RESEND_API_KEY = 're_jBmmbDUG_59hD9hCgpFE7E1q1uKKVeJ4o';
 
 export async function POST(req: NextRequest) {
   const origin = process.env.NEXT_PUBLIC_BASE_URL || new URL(req.url).origin;
-  const { to, clientName, clientRut, shareLink, mode, projectName, asesorName, asesorEmail, resendOf, commune, insights, pdfBase64 } = await req.json();
+  const { to, clientName, clientRut, shareLink, mode, projectName, asesorName, asesorEmail, resendOf, commune, insights } = await req.json();
   const isStatic = mode === 'static';
 
   if (!to || !shareLink) {
@@ -160,8 +160,6 @@ export async function POST(req: NextRequest) {
 
       ${communeStudyHtml}
 
-      ${pdfBase64 ? `<p style="font-size:13px;color:#334d6e;line-height:1.7;margin:0 0 20px;">📎 Además, adjuntamos un resumen de tu inversión en un PDF.</p>` : ''}
-
       <!-- CTA -->
       <div style="text-align:center;margin-bottom:30px;">
         <a href="${shareLink}" style="display:inline-block;background:linear-gradient(135deg,#1d4ed8,${isStatic ? '#0284c7' : '#7c3aed'});color:#fff;text-decoration:none;padding:16px 40px;border-radius:14px;font-size:15px;font-weight:800;letter-spacing:0.01em;box-shadow:0 4px 20px #1d4ed830;">
@@ -206,12 +204,6 @@ export async function POST(req: NextRequest) {
       cc: Array.from(new Set(['vicente.torres@proppi.cl', ...(asesorEmail && asesorEmail !== 'vicente.torres@proppi.cl' ? [asesorEmail] : [])])).filter(Boolean),
       subject,
       html,
-      ...(pdfBase64 ? {
-        attachments: [{
-          filename: `Proppi_${(projectName || 'Simulacion').replace(/\s+/g, '_')}_${(clientName || 'Cliente').replace(/\s+/g, '_')}.pdf`,
-          content: pdfBase64,
-        }],
-      } : {}),
     }),
   });
 
