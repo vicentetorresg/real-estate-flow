@@ -50,6 +50,9 @@ export default function MapaInteractivo({ onClose }: { onClose: () => void }) {
   const [label, setLabel]         = useState('');
   const [els, setEls]             = useState<MapEl[]>([]);
   const [lineCount, setLineCount] = useState(0); // UI only, tracks points in progress
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searching, setSearching]     = useState(false);
+  const [searchErr, setSearchErr]     = useState('');
 
   // Refs for stable access inside Leaflet event handlers
   const stateRef = useRef({ mode, color, icon, label });
@@ -208,6 +211,29 @@ export default function MapaInteractivo({ onClose }: { onClose: () => void }) {
     setEls(prev => prev.filter(x => x.id !== id));
   }
 
+  // ── Address search (Nominatim) ──────────────────────────────
+  async function searchAddress() {
+    if (!searchQuery.trim() || !leafletRef.current) return;
+    setSearching(true);
+    setSearchErr('');
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=1&countrycodes=cl`,
+        { headers: { 'Accept-Language': 'es' } }
+      );
+      const data = await res.json();
+      if (data.length > 0) {
+        const { lat, lon } = data[0];
+        leafletRef.current.map.flyTo([parseFloat(lat), parseFloat(lon)], 17);
+      } else {
+        setSearchErr('Dirección no encontrada');
+      }
+    } catch {
+      setSearchErr('Error al buscar');
+    }
+    setSearching(false);
+  }
+
   // ── Cancel line in progress ────────────────────────────────
   function cancelLine() {
     const line = lineRef.current;
@@ -250,6 +276,28 @@ export default function MapaInteractivo({ onClose }: { onClose: () => void }) {
           width: 230, background: '#f8fbff', borderRight: '1px solid #bfdbfe',
           overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 14, flexShrink: 0,
         }}>
+
+          {/* Address search */}
+          <div>
+            <p style={{ fontSize: 9, fontWeight: 700, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Buscar dirección</p>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setSearchErr(''); }}
+                onKeyDown={e => e.key === 'Enter' && searchAddress()}
+                placeholder="Ej: Av. Providencia 1234"
+                style={{ flex: 1, padding: '7px 10px', borderRadius: 8, border: '1px solid #bfdbfe', fontSize: 11, outline: 'none', background: '#fff' }}
+              />
+              <button
+                onClick={searchAddress}
+                disabled={searching}
+                style={{ padding: '7px 10px', borderRadius: 8, border: 'none', background: '#1d4ed8', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13, flexShrink: 0 }}
+              >
+                {searching ? '…' : '🔍'}
+              </button>
+            </div>
+            {searchErr && <p style={{ fontSize: 10, color: '#dc2626', marginTop: 4 }}>{searchErr}</p>}
+          </div>
 
           {/* Mode */}
           <div>
