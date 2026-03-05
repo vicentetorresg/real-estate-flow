@@ -1379,6 +1379,21 @@ function PlusvaliasModal({ onClose, appreciations, onChange }: {
   const comunas = Object.keys(COMUNAS).sort((a, b) => a.localeCompare(b, 'es'));
   const filtered = search ? comunas.filter(c => c.toLowerCase().includes(search.toLowerCase())) : comunas;
 
+  const [localValues, setLocalValues] = React.useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    comunas.forEach(c => { init[c] = appreciations[c] != null ? String(appreciations[c]).replace('.', ',') : ''; });
+    return init;
+  });
+
+  function handleSave() {
+    comunas.forEach(c => {
+      const raw = (localValues[c] ?? '').replace(',', '.');
+      const num = parseFloat(raw);
+      onChange(c, isNaN(num) ? 0 : num);
+    });
+    onClose();
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#00000070', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 680, boxShadow: '0 24px 80px #0004', overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
@@ -1415,12 +1430,10 @@ function PlusvaliasModal({ onClose, appreciations, onChange }: {
                   <td style={{ padding: '6px 8px', textAlign: 'right' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
                       <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="20"
-                        value={appreciations[commune] ?? ''}
-                        onChange={e => onChange(commune, parseFloat(e.target.value) || 0)}
+                        type="text"
+                        inputMode="decimal"
+                        value={localValues[commune] ?? ''}
+                        onChange={e => setLocalValues(prev => ({ ...prev, [commune]: e.target.value }))}
                         placeholder="—"
                         style={{ width: 70, textAlign: 'right', background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '4px 8px', fontSize: 12, color: '#0f2957', outline: 'none' }}
                       />
@@ -1433,8 +1446,10 @@ function PlusvaliasModal({ onClose, appreciations, onChange }: {
           </table>
           {filtered.length === 0 && <p style={{ textAlign: 'center', color: '#93b4d4', padding: 20, fontSize: 12 }}>No se encontraron comunas</p>}
         </div>
-        <div style={{ padding: '10px 24px', borderTop: '1px solid #dbeafe', flexShrink: 0, fontSize: 11, color: '#93b4d4', textAlign: 'center' }}>
-          Los cambios se guardan automaticamente en este dispositivo
+        <div style={{ padding: '12px 24px', borderTop: '1px solid #dbeafe', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={handleSave} style={{ background: 'linear-gradient(135deg, #1d4ed8, #7c3aed)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 28px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Guardar
+          </button>
         </div>
       </div>
     </div>
