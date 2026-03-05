@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       if (line.startsWith('## ')) return `<div style="font-size:13px;font-weight:700;color:#0f2957;margin-top:14px;margin-bottom:4px;border-left:3px solid #7c3aed;padding-left:10px;">${line.slice(3)}</div>`;
       if (!line.trim()) return '<div style="height:4px;"></div>';
       const html = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      return `<p style="font-size:12px;color:#334d6e;line-height:1.7;margin:0;">${html}</p>`;
+      return `<p style="font-size:12px;color:#334d6e;line-height:1.7;margin:0;text-align:justify;">${html}</p>`;
     }).join('');
     return `<div style="background:linear-gradient(135deg,#f5f3ff,#eff6ff);border-radius:14px;padding:22px 24px;margin-bottom:28px;border:1px solid #ddd6fe;"><p style="font-size:11px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 14px;">Análisis personalizado de tu inversión</p>${lines}</div>`;
   })() : '';
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       if (line.startsWith('## ')) return `<p style="font-size:13px;font-weight:700;color:#0f2957;margin:14px 0 4px;border-left:3px solid #1d4ed8;padding-left:10px;">${line.slice(3)}</p>`;
       if (!line.trim()) return '';
       const html = line.replace(/\*\*(.*?)\*\*/g, '<strong style="color:#0f2957;">$1</strong>');
-      return `<p style="font-size:13px;color:#334d6e;line-height:1.75;margin:0 0 6px;">${html}</p>`;
+      return `<p style="font-size:13px;color:#334d6e;line-height:1.75;margin:0 0 6px;text-align:justify;">${html}</p>`;
     }).filter(Boolean).join('');
     return `
       <div style="background:#f8fbff;border-radius:14px;padding:22px 26px;margin-bottom:28px;border:1px solid #bfdbfe;">
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     return `
       <div style="margin-bottom:28px;">
         <p style="font-size:14px;font-weight:700;color:#0f2957;margin:0 0 10px;">📋 Reserva y Documentación</p>
-        <p style="font-size:13px;color:#334d6e;line-height:1.75;margin:0 0 20px;">
+        <p style="font-size:13px;color:#334d6e;line-height:1.75;margin:0 0 20px;text-align:justify;">
           La reserva tiene un valor de <strong style="color:#0f2957;">${info.reservaAmount} por unidad</strong>.
           Con esto logramos bloquear la unidad por un plazo máximo de 10 días, congelando el valor de la propiedad y el bono pie.
           <strong style="color:#0f2957;">Con la reserva, iniciaremos de inmediato la gestión de tu aprobación bancaria.</strong>
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
       </p>
       ${clientRut ? `<p style="font-size:11px;color:#94a3b8;margin:0 0 20px;">RUT ${clientRut}</p>` : '<div style="margin-bottom:20px;"></div>'}
 
-      <p style="font-size:14px;color:#334d6e;line-height:1.7;margin:0 0 16px;">
+      <p style="font-size:14px;color:#334d6e;line-height:1.7;margin:0 0 16px;text-align:justify;">
         ${asesorName
           ? `<strong style="color:#1d4ed8;">${asesorName}</strong> del equipo Proppi preparó este plan exclusivamente para ti.`
           : 'El equipo de Proppi preparó este plan exclusivamente para ti.'
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
         Queremos que puedas tomar tu decisión de inversión inmobiliaria de forma <strong style="color:#0f2957;">completamente informada</strong>, con todos los números sobre la mesa.
       </p>
 
-      <p style="font-size:14px;color:#334d6e;line-height:1.7;margin:0 0 24px;">
+      <p style="font-size:14px;color:#334d6e;line-height:1.7;margin:0 0 24px;text-align:justify;">
         En este análisis encontrarás el flujo mes a mes, cuánto pagarás de dividendo, cuánto recibirás de arriendo, y cuál sería tu ganancia real al momento de vender — en dos escenarios distintos. Sin letra chica.
       </p>
 
@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
       ${communeReservaHtml}
 
       <div style="border-top:1px solid #e2e8f0;padding-top:20px;">
-        <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
+        <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;text-align:justify;">
           ¿Tienes preguntas? Responde este correo o contáctate directamente con${asesorName ? ` <strong style="color:#334d6e;">${asesorName}</strong>` : ' tu asesor Proppi'}. Estamos para ayudarte a dar el próximo paso.<br/><br/>
           <em>Los valores son estimativos y no garantizan retorno de inversión.</em>
         </p>
