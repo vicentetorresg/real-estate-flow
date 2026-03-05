@@ -95,6 +95,11 @@ function fCLP(v: number, compact = true): string {
 function fUF(v: number, d = 2) {
   return `UF ${v.toLocaleString('es-CL', { minimumFractionDigits: d, maximumFractionDigits: d })}`;
 }
+function fPct(v: number, d = 2) {
+  if (!isFinite(v)) return '∞';
+  return `${v.toFixed(d).replace('.', ',')}%`;
+}
+const CARD: React.CSSProperties = { background: '#fff', border: '1px solid #bfdbfe', borderRadius: 14 };
 
 // ─── Simulation ──────────────────────────────────────────────
 function runSimulation(p: SimulationParams): SimulationResult {
@@ -259,6 +264,106 @@ function runSimulation(p: SimulationParams): SimulationResult {
     totalDividendsPaid: data.reduce((s, d) => s + d.dividend, 0),
     bonoPieUFTotal: bonoPieUF,
   };
+}
+
+// ─── CompactScenarios ────────────────────────────────────────
+function CompactScenarios({ R, p }: { R: SimulationResult; p: SimulationParams }) {
+  const escrituraMes = addMonths(p.startMonth, p.startYear, p.deliveryType === 'future' ? p.constructionMonths : 0);
+  const { month: sm, year: sy } = addMonths(escrituraMes.month, escrituraMes.year, p.analysisYears * 12);
+
+  return (
+    <div style={{ display: 'flex', gap: 10 }}>
+      {([
+        { label: 'Escenario Conservador', s: R.scenario1, ann: R.effectiveAnnual1, total: R.totalApprec1, color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+        { label: 'Escenario Optimista',   s: R.scenario2, ann: R.effectiveAnnual2, total: R.totalApprec2, color: '#15803d', bg: '#f0fdf4', border: '#86efac' },
+      ] as const).map(({ label, s, ann, total, color, bg, border }) => (
+        <div key={label} style={{ width: 220, flexShrink: 0, background: bg, border: `1px solid ${border}`, borderRadius: 12, padding: '12px 14px' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</p>
+          <p style={{ fontSize: 10, color: '#6b93c4', marginBottom: 8 }}>
+            {fPct(ann, 1)}/año · +{fPct(total, 1)} en {p.analysisYears}a · Venta {ML[sm]} {sy}
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
+            <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, background: '#ffffff88', borderRadius: 8, padding: '8px 10px' }}>
+              <div>
+                <p style={{ fontSize: 9, color: '#6b93c4', marginBottom: 1 }}>💰 Total invertido</p>
+                <p style={{ fontSize: 13, fontWeight: 800, color: '#dc2626', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{fCLP(R.totalNegativeCashFlow, false)}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 9, color: '#6b93c4', marginBottom: 1 }}>🚀 Podrías ganar</p>
+                <p style={{ fontSize: 13, fontWeight: 800, color, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{fCLP(s.totalReturn, false)}</p>
+              </div>
+            </div>
+            {[
+              ['Precio venta', fUF(s.salePriceUF, 0)],
+              ['Patrimonio neto', fCLP(s.netEquityCLP, false)],
+              ['ROI total', fPct(s.roiPercent, 0)],
+              ['ROI anualizado', fPct(s.annualizedRoiPercent, 1)],
+              ['Equity múltiplo', `${isFinite(s.equityMultiple) ? s.equityMultiple.toFixed(1) : '∞'}x`],
+              ['Deuda pendiente', fUF(s.outstandingBalanceUF, 0)],
+            ].map(([lbl, val]) => (
+              <div key={lbl as string}>
+                <p style={{ fontSize: 9, color: '#6b93c4', marginBottom: 1 }}>{lbl}</p>
+                <p style={{ fontSize: 11, fontWeight: 700, color, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{val}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── SalesSummaryBox ─────────────────────────────────────────
+function SalesSummaryBox({ R, p }: { R: SimulationResult; p: SimulationParams }) {
+  const last = R.monthlyData[R.monthlyData.length - 1];
+  const lastUF = last.ufValue;
+  const apreciacionUF1 = R.scenario1.salePriceUF - R.totalValueUF;
+  const apreciacionUF2 = R.scenario2.salePriceUF - R.totalValueUF;
+  const amortizacionUF1 = R.loanUF - R.scenario1.outstandingBalanceUF;
+  const amortizacionUF2 = R.loanUF - R.scenario2.outstandingBalanceUF;
+
+  const rows: [string, string, string][] = [
+    ['Precio compra inicial (UF)',  fUF(R.totalValueUF, 0),               fUF(R.totalValueUF, 0)],
+    ['Precio compra inicial (CLP)', fCLP(R.totalValueUF * p.ufValueCLP, false), fCLP(R.totalValueUF * p.ufValueCLP, false)],
+    ['Precio de venta (UF)',        fUF(R.scenario1.salePriceUF, 0),      fUF(R.scenario2.salePriceUF, 0)],
+    ['Precio de venta (CLP)',       fCLP(R.scenario1.salePriceCLP, false), fCLP(R.scenario2.salePriceCLP, false)],
+    ['Ganancia plusvalía (UF)',     fUF(apreciacionUF1, 0),               fUF(apreciacionUF2, 0)],
+    ['Ganancia plusvalía (CLP)',    fCLP(apreciacionUF1 * lastUF, false),  fCLP(apreciacionUF2 * lastUF, false)],
+    ['Deuda hipot. inicial (UF)',   fUF(R.loanUF, 0),                     fUF(R.loanUF, 0)],
+    ['Deuda hipot. al vender (UF)', fUF(R.scenario1.outstandingBalanceUF, 0), fUF(R.scenario2.outstandingBalanceUF, 0)],
+    ['Amortización (UF)',           fUF(amortizacionUF1, 0),              fUF(amortizacionUF2, 0)],
+    ['Amortización (CLP)',          fCLP(amortizacionUF1 * lastUF, false), fCLP(amortizacionUF2 * lastUF, false)],
+    ['Inversión total',             fCLP(R.totalNegativeCashFlow, false), fCLP(R.totalNegativeCashFlow, false)],
+    ['Utilidad del ejercicio',      fCLP(R.scenario1.totalReturn, false), fCLP(R.scenario2.totalReturn, false)],
+    ['ROI Neto',                    fPct(R.scenario1.roiPercent, 1),      fPct(R.scenario2.roiPercent, 1)],
+    ['Cap Rate',                    fPct(R.capRatePercent),               fPct(R.capRatePercent)],
+  ];
+
+  return (
+    <div style={{ ...CARD, padding: '14px 18px', width: 360, flexShrink: 0 }}>
+      <p style={{ fontSize: 10, fontWeight: 700, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+        Resumen de Venta
+      </p>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: 'left', padding: '5px 8px', borderBottom: '2px solid #dbeafe', color: '#6b93c4', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Concepto</th>
+            <th style={{ textAlign: 'right', padding: '5px 8px', borderBottom: '2px solid #dbeafe', color: '#1d4ed8', fontSize: 9, textTransform: 'uppercase' }}>Conservador</th>
+            <th style={{ textAlign: 'right', padding: '5px 8px', borderBottom: '2px solid #dbeafe', color: '#15803d', fontSize: 9, textTransform: 'uppercase' }}>Optimista</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([lbl, v1, v2], i) => (
+            <tr key={i} style={{ borderBottom: '1px solid #f0f4ff' }}>
+              <td style={{ padding: '4px 8px', color: '#6b93c4', fontSize: 10 }}>{lbl}</td>
+              <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#1d4ed8', fontSize: 11 }}>{v1}</td>
+              <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#15803d', fontSize: 11 }}>{v2}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 // ─── FlowTable ───────────────────────────────────────────────
@@ -581,6 +686,12 @@ export default function FlujoPage() {
 
         {/* Table */}
         <FlowTable data={R.monthlyData} p={p} R={R} />
+
+        {/* Resumen escenarios + venta */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start', marginTop: 16 }}>
+          <CompactScenarios R={R} p={p} />
+          <SalesSummaryBox R={R} p={p} />
+        </div>
 
         <p style={{ textAlign: 'center', fontSize: 10, color: '#93b4d4', marginTop: 16 }}>
           Proppi Simulador · Valores estimativos, no garantizan retorno · UF ${p.ufValueCLP.toLocaleString('es-CL')} · {p.commune} {p.startYear}
