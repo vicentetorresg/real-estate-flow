@@ -26,7 +26,8 @@ export async function POST(req: NextRequest) {
     const lines = insights.split('\n').map((line: string) => {
       if (line.startsWith('## ')) return `<div style="font-size:13px;font-weight:700;color:#0f2957;margin-top:14px;margin-bottom:4px;border-left:3px solid #7c3aed;padding-left:10px;">${line.slice(3)}</div>`;
       if (!line.trim()) return '<div style="height:4px;"></div>';
-      return `<p style="font-size:12px;color:#334d6e;line-height:1.7;margin:0;">${line}</p>`;
+      const html = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      return `<p style="font-size:12px;color:#334d6e;line-height:1.7;margin:0;">${html}</p>`;
     }).join('');
     return `<div style="background:linear-gradient(135deg,#f5f3ff,#eff6ff);border-radius:14px;padding:22px 24px;margin-bottom:28px;border:1px solid #ddd6fe;"><p style="font-size:11px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 14px;">Análisis personalizado de tu inversión</p>${lines}</div>`;
   })() : '';

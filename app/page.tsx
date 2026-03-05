@@ -786,18 +786,25 @@ function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorCh
     } finally { setSending(false); }
   };
 
+  function renderBold(text: string) {
+    const parts = text.split(/\*\*(.*?)\*\*/g);
+    return parts.map((part, i) =>
+      i % 2 === 1 ? <strong key={i} style={{ color: '#0f2957' }}>{part}</strong> : part
+    );
+  }
+
   function renderInsights(text: string) {
     return text.split('\n').map((line, i) => {
       if (line.startsWith('## ')) {
         return (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, marginBottom: 4 }}>
             <span style={{ width: 3, height: 14, background: '#1d4ed8', borderRadius: 2, display: 'inline-block', flexShrink: 0 }} />
-            <span style={{ fontWeight: 700, color: '#0f2957', fontSize: 12 }}>{line.slice(3)}</span>
+            <span style={{ fontWeight: 700, color: '#0f2957', fontSize: 12 }}>{renderBold(line.slice(3))}</span>
           </div>
         );
       }
-      if (line.trim() === '') return <div key={i} style={{ height: 4 }} />;
-      return <p key={i} style={{ fontSize: 11, color: '#334d6e', lineHeight: 1.65, margin: 0 }}>{line}</p>;
+      if (line.trim() === '') return <div key={i} style={{ height: 6 }} />;
+      return <p key={i} style={{ fontSize: 11, color: '#334d6e', lineHeight: 1.7, margin: 0 }}>{renderBold(line)}</p>;
     });
   }
 

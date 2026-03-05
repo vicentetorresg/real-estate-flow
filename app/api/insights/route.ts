@@ -50,27 +50,24 @@ SI VENDES EN ${p.analysisYears} AÑOS:
 - Escenario moderado: ganarías ${fCLP((r.scenario1 as Record<string, number>).totalReturn)} — un ${fPct((r.scenario1 as Record<string, number>).annualizedRoiPercent)} al año
 - Escenario optimista: ganarías ${fCLP((r.scenario2 as Record<string, number>).totalReturn)} — un ${fPct((r.scenario2 as Record<string, number>).annualizedRoiPercent)} al año
 
-Escribe el análisis con estas secciones (usa ## para los títulos, sin asteriscos ni bullet points — solo texto fluido):
+INSTRUCCIONES DE TONO Y FORMATO:
+- Escribe como si fueras el asesor enviándole un mensaje personal a ${nombre}, no un reporte
+- Corto y directo: máximo 200 palabras en total
+- Usa **negritas** (con doble asterisco) para resaltar los números clave y las ideas más importantes
+- Sin secciones ni títulos — solo 3 párrafos fluidos y naturales
+- Que suene humano, cercano, como un mensaje de WhatsApp largo o un email personal
 
-## ¿Por qué esta inversión tiene sentido para ti?
-Explícale a ${nombre} en 2-3 oraciones simples por qué esto es una oportunidad real. Menciona que el arriendo ayuda a pagar parte del dividendo, y que con el tiempo la propiedad vale más.
+CONCEPTO CLAVE que debes transmitir con naturalidad: aunque el dividendo sea mayor al arriendo, la diferencia no es capital perdido — cada pago al banco está amortizando la deuda, es decir, acumulando patrimonio. Cada mes que pasa, ${nombre} debe menos y es más dueño/a. El arriendo paga una parte, y lo que resta construye riqueza propia. Eso es lo que hace especial a la inversión inmobiliaria.
 
-## ¿Qué pasa cada mes?
-Explica en lenguaje cotidiano cuánto paga y cuánto recibe. Cuál es la diferencia real. Si hay período de gracia o arriendo garantizado, explica cómo eso ayuda al inicio.
-
-## ¿Cuánto puede crecer tu patrimonio?
-Explica los dos escenarios de manera simple. Compara el retorno con algo que ${nombre} entienda, como tener el dinero en el banco. Hazlo motivador pero realista.
-
-## Lo mejor de esta oportunidad
-3 puntos concretos y positivos, escritos de forma cercana. Sin bullets — escríbelos como párrafos cortos separados.
-
-## El próximo paso es tuyo
-Cierra con 2-3 oraciones cálidas y motivadoras. Invita a ${nombre} a resolver sus dudas con el asesor y a dar el siguiente paso con confianza.`;
+Escribe exactamente 3 párrafos, sin títulos:
+1. Párrafo de enganche: explica la lógica de la inversión de forma simple y cercana, con los números reales. Destaca el concepto de amortización.
+2. Párrafo de retorno: menciona cuánto podría crecer tu patrimonio al vender en ${p.analysisYears} años en ambos escenarios. Hazlo emocionante pero honesto.
+3. Párrafo de cierre: una frase motivadora y personal que invite a dar el siguiente paso.`;
 
   try {
     const stream = await client.messages.stream({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1000,
+      max_tokens: 600,
       messages: [{ role: 'user', content: prompt }],
     });
 
