@@ -31,6 +31,16 @@ export async function POST(req: NextRequest) {
   const totalValueUF = (p.propertyValueUF as number) + (p.parkingCount as number) * (p.parkingValueUF as number) + (p.storageCount as number) * (p.storageValueUF as number);
   const nombre = p.clientName ? (p.clientName as string).split(' ')[0] : 'ti';
 
+  // Comparación depósito a plazo
+  const years = p.analysisYears as number;
+  const initialCapital = (r.clientPieUF as number) * (p.ufValueCLP as number);
+  const gain5pct = initialCapital * (Math.pow(1.05, years) - 1);
+  const gain3pct = initialCapital * (Math.pow(1.03, years) - 1);
+  const reGainConservador = (r.scenario1 as Record<string, number>).totalReturn;
+  const reGainOptimista   = (r.scenario2 as Record<string, number>).totalReturn;
+  const vsBank5conservador = reGainConservador - gain5pct;
+  const vsBank5optimista   = reGainOptimista   - gain5pct;
+
   const prompt = `Eres un asesor inmobiliario amable, cercano y honesto. Acabas de preparar una simulación personalizada para ${nombre} y quieres explicarle, en palabras simples y cálidas, qué significa esta inversión para su futuro.
 
 Escribe como si le hablaras directamente a ${nombre}. Usa "tú". Sin tecnicismos. Sin jerga financiera compleja. Como si le explicaras a un amigo/a que nunca ha invertido antes. Sé motivador/a, pero honesto/a — usa los números reales.
@@ -47,8 +57,12 @@ ${(p.gracePeriodMonths as number) > 0 ? `- Gracia hipotecaria: ${p.gracePeriodMo
 ${p.guaranteedRentEnabled ? `- Arriendo garantizado: ${fCLP(p.guaranteedRentCLP as number)}/mes por ${p.guaranteedRentMonths} meses desde la entrega` : ''}
 
 SI VENDES EN ${p.analysisYears} AÑOS:
-- Escenario moderado: ganarías ${fCLP((r.scenario1 as Record<string, number>).totalReturn)} — un ${fPct((r.scenario1 as Record<string, number>).annualizedRoiPercent)} al año
-- Escenario optimista: ganarías ${fCLP((r.scenario2 as Record<string, number>).totalReturn)} — un ${fPct((r.scenario2 as Record<string, number>).annualizedRoiPercent)} al año
+- Escenario moderado: ganarías ${fCLP(reGainConservador)} — un ${fPct((r.scenario1 as Record<string, number>).annualizedRoiPercent)} al año
+- Escenario optimista: ganarías ${fCLP(reGainOptimista)} — un ${fPct((r.scenario2 as Record<string, number>).annualizedRoiPercent)} al año
+
+COMPARACIÓN vs ALTERNATIVAS (mismo capital inicial ${fCLP(initialCapital)}):
+- Depósito a plazo al 5% anual por ${years} años: ganaría ${fCLP(gain5pct)} → la inversión inmobiliaria supera eso en ${fCLP(vsBank5conservador)} (conservador) o ${fCLP(vsBank5optimista)} (optimista)
+- Depósito a plazo al 3% anual por ${years} años: ganaría ${fCLP(gain3pct)}
 
 INSTRUCCIONES DE TONO Y FORMATO:
 - Tono ejecutivo, profesional y directo. No informal, no coloquial.
@@ -63,7 +77,7 @@ CONCEPTO CLAVE a transmitir con precisión: aunque el dividendo supere al arrien
 
 Escribe exactamente 3 párrafos, sin títulos:
 1. La lógica de la inversión: banco financia el ${p.financingPercent}%, el arriendo cubre parte del dividendo, cada cuota amortiza deuda y acumula patrimonio. Con números reales.
-2. El retorno proyectado: en ${p.analysisYears} años, los dos escenarios con cifras exactas. Claro y ejecutivo.
+2. El retorno proyectado y comparación: en ${p.analysisYears} años, los dos escenarios con cifras exactas. Luego compara directamente con lo que rendiría un depósito a plazo al 5% y al 3% sobre el mismo capital — y cuánto más gana aquí en términos absolutos. Esto debe quedar muy claro.
 3. Cierre: una sola oración seca y profesional. Puede ser algo como quedar disponible para resolver dudas o revisar los números juntos. Sin frases de venta, sin entusiasmo exagerado, sin signos de exclamación.`;
 
   try {
