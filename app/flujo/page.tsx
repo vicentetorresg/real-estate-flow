@@ -295,7 +295,7 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
 
   type RowDef = {
     label: string;
-    type: 'section' | 'income' | 'expense' | 'subtotal' | 'result' | 'balance' | 'info' | 'toggle';
+    type: 'section' | 'income' | 'expense' | 'subtotal' | 'result' | 'balance' | 'equity' | 'info' | 'toggle';
     fn: (d: MonthlyData) => number | string | null;
     tooltipFn?: (d: MonthlyData) => string | null;
   };
@@ -323,6 +323,9 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
     { label: 'FLUJO MENSUAL', type: 'section', fn: () => null },
     { label: 'Flujo neto del mes', type: 'result', fn: d => d.netCashFlow },
     { label: 'Flujo acumulado', type: 'result', fn: d => d.cumulativeCashFlow },
+    // ── PATRIMONIO ACUMULADO (siempre visible, gris) ─────────
+    { label: 'Patrimonio acumulado', type: 'equity', fn: (d: MonthlyData) => d.equityCLP },
+
     // ── GANANCIA TOTAL CON VENTA (siempre visible) ────────────
     { label: 'GANANCIA TOTAL CON VENTA', type: 'section', fn: () => null },
     { label: 'Resultado final (conservador)', type: 'result', fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.totalReturn : null },
@@ -333,7 +336,6 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
       { label: 'UF del período', type: 'balance' as const, fn: (d: MonthlyData) => d.ufValue },
       { label: 'Saldo deuda (UF)', type: 'balance' as const, fn: (d: MonthlyData) => d.outstandingBalanceUF },
       { label: 'Saldo deuda (CLP)', type: 'balance' as const, fn: (d: MonthlyData) => d.outstandingBalanceCLP },
-      { label: 'Patrimonio neto', type: 'balance' as const, fn: (d: MonthlyData) => d.equityCLP },
       { label: 'EVENTO DE VENTA', type: 'section' as const, fn: () => null },
       { label: 'Precio venta (conservador)', type: 'income' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.salePriceCLP : null },
       { label: 'Precio venta (optimista)', type: 'income' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.salePriceCLP : null },
@@ -359,6 +361,7 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
     if (row.type === 'subtotal') return '#0369a1';
     if (row.type === 'result')   return v >= 0 ? '#15803d' : '#dc2626';
     if (row.type === 'balance')  return '#1d4ed8';
+    if (row.type === 'equity')   return '#94a3b8';
     return '#0f2957';
   }
 
@@ -426,7 +429,7 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
           {rows.map((row, ri) => {
             const isSection = row.type === 'section';
             const isToggle  = row.type === 'toggle';
-            const rowBg = isSection || isToggle ? '#dbeafe' : row.type === 'result' ? '#eff6ff' : row.type === 'subtotal' ? '#f0f9ff' : '#fff';
+            const rowBg = isSection || isToggle ? '#dbeafe' : row.type === 'result' ? '#eff6ff' : row.type === 'subtotal' ? '#f0f9ff' : row.type === 'equity' ? '#f8fafc' : '#fff';
 
             if (isToggle) {
               return (
