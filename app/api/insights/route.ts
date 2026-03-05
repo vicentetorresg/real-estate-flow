@@ -32,10 +32,11 @@ export async function POST(req: NextRequest) {
   const nombre = p.clientName ? (p.clientName as string).split(' ')[0] : 'ti';
 
   // Comparación depósito a plazo
+  // Usamos totalNegativeCashFlow: todo el capital real que el cliente pone (pie + top-ups mensuales + gastos)
   const years = p.analysisYears as number;
-  const initialCapital = (r.clientPieUF as number) * (p.ufValueCLP as number);
-  const gain5pct = initialCapital * (Math.pow(1.05, years) - 1);
-  const gain3pct = initialCapital * (Math.pow(1.03, years) - 1);
+  const totalCapitalInvested = r.totalNegativeCashFlow as number;
+  const gain5pct = totalCapitalInvested * (Math.pow(1.05, years) - 1);
+  const gain3pct = totalCapitalInvested * (Math.pow(1.03, years) - 1);
   const reGainConservador = (r.scenario1 as Record<string, number>).totalReturn;
   const reGainOptimista   = (r.scenario2 as Record<string, number>).totalReturn;
   const vsBank5conservador = reGainConservador - gain5pct;
@@ -60,7 +61,7 @@ SI VENDES EN ${p.analysisYears} AÑOS:
 - Escenario moderado: ganarías ${fCLP(reGainConservador)} — un ${fPct((r.scenario1 as Record<string, number>).annualizedRoiPercent)} al año
 - Escenario optimista: ganarías ${fCLP(reGainOptimista)} — un ${fPct((r.scenario2 as Record<string, number>).annualizedRoiPercent)} al año
 
-COMPARACIÓN vs ALTERNATIVAS (mismo capital inicial ${fCLP(initialCapital)}):
+COMPARACIÓN vs ALTERNATIVAS (mismo capital total expuesto ${fCLP(totalCapitalInvested)}, que incluye pie, gastos y aportes mensuales):
 - Depósito a plazo al 5% anual por ${years} años: ganaría ${fCLP(gain5pct)} → la inversión inmobiliaria supera eso en ${fCLP(vsBank5conservador)} (conservador) o ${fCLP(vsBank5optimista)} (optimista)
 - Depósito a plazo al 3% anual por ${years} años: ganaría ${fCLP(gain3pct)}
 
