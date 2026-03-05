@@ -298,7 +298,7 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
 
   const rows: RowDef[] = [
     { label: 'INGRESOS', type: 'section', fn: () => null },
-    { label: `Arriendo bruto (reaj. UF+${p.rentAnnualExtraPercent}%/año)`, type: 'income', fn: d => d.grossRent },
+    { label: `Arriendo bruto (mercado: reaj. UF+${p.rentAnnualExtraPercent}%/año · garantizado: solo UF si aplica)`, type: 'income', fn: d => d.grossRent },
     { label: 'GASTOS OPERACIONALES', type: 'section', fn: () => null },
     { label: `Adm. inmobiliaria (${p.managementFeePercent}%)`, type: 'expense', fn: d => -d.managementFee },
     { label: `Vacancia (${p.vacancyDays} días/año)`, type: 'expense', fn: d => d.vacancyLoss > 0 ? -d.vacancyLoss : null },
