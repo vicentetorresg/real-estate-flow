@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase-server';
+import { getCommuneInfo, type CommuneInfo } from '@/lib/commune-info';
 
 const RESEND_API_KEY = 're_jBmmbDUG_59hD9hCgpFE7E1q1uKKVeJ4o';
 
 export async function POST(req: NextRequest) {
-  const origin = new URL(req.url).origin;
-  const { to, clientName, clientRut, shareLink, mode, projectName, asesorName, resendOf, commune, insights } = await req.json();
+  const origin = process.env.NEXT_PUBLIC_BASE_URL || new URL(req.url).origin;
+  const { to, clientName, clientRut, shareLink, mode, projectName, asesorName, asesorEmail, resendOf, commune, insights } = await req.json();
   const isStatic = mode === 'static';
 
   if (!to || !shareLink) {
@@ -32,12 +33,79 @@ export async function POST(req: NextRequest) {
     return `<div style="background:linear-gradient(135deg,#f5f3ff,#eff6ff);border-radius:14px;padding:22px 24px;margin-bottom:28px;border:1px solid #ddd6fe;"><p style="font-size:11px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 14px;">Análisis personalizado de tu inversión</p>${lines}</div>`;
   })() : '';
 
+  const communeInfo = getCommuneInfo(commune);
+
+  function buildCommuneStudyHtml(info: CommuneInfo): string {
+    const lines = info.study.split('\n').map((line: string) => {
+      if (line.startsWith('## ')) return `<p style="font-size:13px;font-weight:700;color:#0f2957;margin:14px 0 4px;border-left:3px solid #1d4ed8;padding-left:10px;">${line.slice(3)}</p>`;
+      if (!line.trim()) return '';
+      const html = line.replace(/\*\*(.*?)\*\*/g, '<strong style="color:#0f2957;">$1</strong>');
+      return `<p style="font-size:13px;color:#334d6e;line-height:1.75;margin:0 0 6px;">${html}</p>`;
+    }).filter(Boolean).join('');
+    return `
+      <div style="background:#f8fbff;border-radius:14px;padding:22px 26px;margin-bottom:28px;border:1px solid #bfdbfe;">
+        <p style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 16px;">
+          📍 ¿Por qué ${info.displayName}?
+        </p>
+        ${lines}
+      </div>`;
+  }
+
+  function buildCommuneReservaHtml(info: CommuneInfo): string {
+    const t = info.transferData;
+    const liStyle = 'font-size:13px;color:#334d6e;line-height:1.9;';
+    const indDocs = info.docsIndependiente.map(d => `<li style="${liStyle}">${d}</li>`).join('');
+    const depDocs = info.docsDependiente.map(d => `<li style="${liStyle}">${d}</li>`).join('');
+    return `
+      <div style="margin-bottom:28px;">
+        <p style="font-size:14px;font-weight:700;color:#0f2957;margin:0 0 10px;">📋 Reserva y Documentación</p>
+        <p style="font-size:13px;color:#334d6e;line-height:1.75;margin:0 0 20px;">
+          La reserva tiene un valor de <strong style="color:#0f2957;">${info.reservaAmount} por unidad</strong>.
+          Con esto logramos bloquear la unidad por un plazo máximo de 10 días, congelando el valor de la propiedad y el bono pie.
+          <strong style="color:#0f2957;">Con la reserva, iniciaremos de inmediato la gestión de tu aprobación bancaria.</strong>
+          Esta reserva es reembolsable frente a todo evento, con un plazo máximo de devolución de 48 horas.
+        </p>
+
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+          <div style="flex:1;min-width:220px;background:#f8fbff;border-radius:12px;padding:16px 18px;border:1px solid #dbeafe;">
+            <p style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:0.07em;margin:0 0 10px;">Trabajador Dependiente</p>
+            <ul style="margin:0;padding-left:18px;">${depDocs}</ul>
+          </div>
+          <div style="flex:1;min-width:220px;background:#f8fbff;border-radius:12px;padding:16px 18px;border:1px solid #dbeafe;">
+            <p style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:0.07em;margin:0 0 10px;">Trabajador Independiente</p>
+            <ul style="margin:0;padding-left:18px;">${indDocs}</ul>
+          </div>
+        </div>
+
+        <div style="background:linear-gradient(135deg,#1d4ed8,#0284c7);border-radius:12px;padding:18px 22px;">
+          <p style="font-size:11px;font-weight:700;color:#93c5fd;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 12px;">Datos de Transferencia</p>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            ${[
+              ['Razón social', t.razonSocial],
+              ['RUT', t.rut],
+              ['Banco', t.banco],
+              ['Tipo de cuenta', t.tipoCuenta],
+              ['Número de cuenta', t.numeroCuenta],
+              ['Email', t.email],
+            ].map(([lbl, val]) => `
+              <tr>
+                <td style="color:#93c5fd;padding:3px 12px 3px 0;white-space:nowrap;">${lbl}</td>
+                <td style="color:#fff;font-weight:600;">${typeof val === 'string' && val.includes('@') ? `<a href="mailto:${val}" style="color:#fff;font-weight:600;text-decoration:none;">${val}</a>` : val}</td>
+              </tr>`).join('')}
+          </table>
+        </div>
+      </div>`;
+  }
+
+  const communeStudyHtml  = communeInfo ? buildCommuneStudyHtml(communeInfo)  : '';
+  const communeReservaHtml = communeInfo ? buildCommuneReservaHtml(communeInfo) : '';
+
   const html = `
 <!DOCTYPE html>
 <html lang="es">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#f0f7ff;font-family:system-ui,-apple-system,sans-serif;">
-  <div style="max-width:580px;margin:32px auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 8px 40px #1d4ed825;">
+  <div style="max-width:680px;margin:32px auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 8px 40px #1d4ed825;">
 
     <!-- Header -->
     <div style="background:linear-gradient(135deg,#1d4ed8,#0284c7);padding:32px 36px 28px;">
@@ -90,6 +158,8 @@ export async function POST(req: NextRequest) {
 
       ${insightsHtml}
 
+      ${communeStudyHtml}
+
       <!-- CTA -->
       <div style="text-align:center;margin-bottom:30px;">
         <a href="${shareLink}" style="display:inline-block;background:linear-gradient(135deg,#1d4ed8,${isStatic ? '#0284c7' : '#7c3aed'});color:#fff;text-decoration:none;padding:16px 40px;border-radius:14px;font-size:15px;font-weight:800;letter-spacing:0.01em;box-shadow:0 4px 20px #1d4ed830;">
@@ -97,6 +167,8 @@ export async function POST(req: NextRequest) {
         </a>
         <p style="font-size:11px;color:#94a3b8;margin:12px 0 0;">Link único y personal — solo tú tienes acceso</p>
       </div>
+
+      ${communeReservaHtml}
 
       <div style="border-top:1px solid #e2e8f0;padding-top:20px;">
         <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
@@ -107,9 +179,12 @@ export async function POST(req: NextRequest) {
     </div>
 
     <!-- Footer -->
-    <div style="background:#f8fbff;border-top:1px solid #dbeafe;padding:16px 36px;display:flex;justify-content:space-between;align-items:center;">
-      <p style="font-size:11px;color:#94a3b8;margin:0;font-weight:600;">Proppi · Inversión Inmobiliaria</p>
-      ${asesorName ? `<p style="font-size:11px;color:#6b93c4;margin:0;">${asesorName}</p>` : ''}
+    <div style="background:#f8fbff;border-top:1px solid #dbeafe;padding:16px 36px;">
+      ${asesorName ? `
+      <p style="font-size:12px;font-weight:700;color:#0f2957;margin:0 0 1px;">${asesorName}</p>
+      <p style="font-size:11px;color:#6b93c4;margin:0 0 1px;">Asesor Inmobiliario</p>
+      <p style="font-size:11px;color:#94a3b8;margin:0;">Proppi Inversiones Inmobiliarias</p>
+      ` : `<p style="font-size:11px;color:#94a3b8;margin:0;font-weight:600;">Proppi Inversiones Inmobiliarias</p>`}
     </div>
 
   </div>
@@ -126,7 +201,7 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({
       from: 'Proppi <notificaciones@proppi.cl>',
       to: [to],
-      cc: ['vicente.torres@proppi.cl'],
+      cc: Array.from(new Set(['vicente.torres@proppi.cl', ...(asesorEmail && asesorEmail !== 'vicente.torres@proppi.cl' ? [asesorEmail] : [])])).filter(Boolean),
       subject,
       html,
     }),

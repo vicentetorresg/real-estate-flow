@@ -690,7 +690,12 @@ function ChartTip({ active, payload, label }: { active?: boolean; payload?: TTP[
   );
 }
 
-const ASESORES = ['Diego Sánchez', 'Cristóbal Sepúlveda', 'Matías Bertelsen', 'Vicente Torres'];
+const ASESORES: { name: string; email: string; phone: string }[] = [
+  { name: 'Diego Sánchez',       email: 'diego.sanchez@proppi.cl',       phone: '56997550071' },
+  { name: 'Cristóbal Sepúlveda', email: 'cristobal.sepulveda@proppi.cl', phone: '56954895625' },
+  { name: 'Matías Bertelsen',    email: 'matias.bertelsen@proppi.cl',    phone: '56968202364' },
+  { name: 'Vicente Torres',      email: 'vicente.torres@proppi.cl',      phone: '56994366697' },
+];
 
 function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorChange }: {
   p: SimulationParams; R: SimulationResult; getShareLink: (mode: 'static' | 'dynamic') => string; onClose: () => void;
@@ -700,6 +705,7 @@ function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorCh
   const [mode, setMode] = React.useState<'static' | 'dynamic'>('static');
   const [to, setTo] = React.useState(p.clientEmail || '');
   const [asesor, setAsesor] = React.useState(defaultAsesor);
+  const asesorObj = ASESORES.find(a => a.name === asesor) ?? null;
   const handleSetAsesor = (v: string) => { setAsesor(v); onAsesorChange?.(v); };
   const [sending, setSending] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -765,8 +771,12 @@ function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorCh
     }
   }, [insightsText]);
 
+  const clientShareLink = asesorObj
+    ? `${shareLink}&asesorName=${encodeURIComponent(asesorObj.name)}&asesorPhone=${encodeURIComponent(asesorObj.phone)}`
+    : shareLink;
+
   const handleCopy = () => {
-    navigator.clipboard.writeText(shareLink);
+    navigator.clipboard.writeText(clientShareLink);
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   };
 
@@ -777,7 +787,7 @@ function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorCh
       const res = await fetch('/api/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, clientName: p.clientName, clientRut: p.clientRut, shareLink, mode, projectName: p.projectName, asesorName: asesor, commune: p.commune, insights: includeInsights ? insightsText : undefined }),
+        body: JSON.stringify({ to, clientName: p.clientName, clientRut: p.clientRut, shareLink: clientShareLink, mode, projectName: p.projectName, asesorName: asesor, asesorEmail: asesorObj?.email ?? null, commune: p.commune, insights: insightsText || undefined }),
       });
       if (!res.ok) throw new Error('Error');
       setStep('sent');
@@ -928,7 +938,7 @@ function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorCh
               )}
               <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 6 }}>Link único generado para este cliente:</p>
               <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-                <input readOnly value={shareLink} style={{ ...INPUT_S, flex: 1, fontSize: 10, fontFamily: 'monospace' }} onClick={e => (e.target as HTMLInputElement).select()} />
+                <input readOnly value={clientShareLink} style={{ ...INPUT_S, flex: 1, fontSize: 10, fontFamily: 'monospace' }} onClick={e => (e.target as HTMLInputElement).select()} />
                 <button onClick={handleCopy} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #bfdbfe', background: copied ? '#f0fdf4' : '#eff6ff', color: copied ? '#15803d' : '#1d4ed8', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600 }}>
                   {copied ? '✓ Copiado' : 'Copiar'}
                 </button>
@@ -936,7 +946,7 @@ function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorCh
               <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 6 }}>Asesor que envía:</p>
               <select value={asesor} onChange={e => handleSetAsesor(e.target.value)} style={{ ...INPUT_S, marginBottom: 14 }}>
                 <option value="">— Seleccionar asesor —</option>
-                {ASESORES.map(a => <option key={a} value={a}>{a}</option>)}
+                {ASESORES.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}
               </select>
               <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 6 }}>Email del cliente:</p>
               <input type="email" value={to} onChange={e => setTo(e.target.value)} style={{ ...INPUT_S, marginBottom: 16 }} placeholder="email@cliente.com" />
