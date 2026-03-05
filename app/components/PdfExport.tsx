@@ -405,7 +405,7 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
         }
       }
 
-      const filename = `Proppi_${(p.projectName || 'Simulacion').replace(/\s+/g, '_')}_${clientName.split(' ')[0] || 'Cliente'}.pdf`;
+      const filename = `Proppi_${(p.projectName || 'Simulacion').replace(/\s+/g, '_')}_${(clientName || 'Cliente').replace(/\s+/g, '_')}.pdf`;
       pdf.save(filename);
     } catch (e) {
       console.error(e);
