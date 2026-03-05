@@ -21,14 +21,14 @@ interface SimulationParams {
   storageCount: number; storageValueUF: number; storageBonoPie: boolean;
   guaranteedRentEnabled: boolean; guaranteedRentMonths: number; guaranteedRentCLP: number;
   guaranteedRentNoAdmin: boolean; guaranteedRentUFAdjusted: boolean;
-  vacancyDays: number; reserveFundUF: number; rentAnnualExtraPercent: number;
+  vacancyDays: number; commonChargesCLP: number; reserveFundUF: number; rentAnnualExtraPercent: number;
 }
 
 interface MonthlyData {
   month: number; date: string; dateShort: string; ufValue: number; phase: Phase;
   grossRent: number; managementFee: number; netRent: number;
   pieCuota: number; pieUpfront: number; operationalCosts: number;
-  corretaje: number; vacancyLoss: number; reserveFund: number;
+  corretaje: number; vacancyLoss: number; commonCharges: number; reserveFund: number;
   dividend: number; interest: number; principal: number;
   netCashFlow: number; cumulativeCashFlow: number;
   outstandingBalanceUF: number; outstandingBalanceCLP: number;
@@ -127,7 +127,7 @@ function runSimulation(p: SimulationParams): SimulationResult {
   const netMonthlyRentCLP = p.monthlyRentCLP * (1 - managementRate);
   const propertyValueCLP  = totalValueUF * p.ufValueCLP;
   const capRatePercent  = ((netMonthlyRentCLP * 12) / propertyValueCLP) * 100;
-  const vacancyRate     = p.vacancyDays / 365;
+  // vacancyRate reemplazado por lógica concentrada
   const preDeliveryMonths  = p.deliveryType === 'future' ? p.constructionMonths : 0;
   const escrituraMonth     = preDeliveryMonths;
   const rentStartMonth     = preDeliveryMonths + 1;
@@ -142,7 +142,7 @@ function runSimulation(p: SimulationParams): SimulationResult {
     ufValue: ufVal0, phase: 'pre-delivery',
     grossRent: 0, managementFee: 0, netRent: 0,
     pieCuota: 0, pieUpfront: pieUpfront0, operationalCosts: p.operationalCostsCLP,
-    corretaje: 0, vacancyLoss: 0, reserveFund: reserveFundCLP0,
+    corretaje: 0, vacancyLoss: 0, commonCharges: 0, reserveFund: reserveFundCLP0,
     dividend: 0, interest: 0, principal: 0,
     netCashFlow: -upfrontCLP, cumulativeCashFlow: -upfrontCLP,
     outstandingBalanceUF: loanUF, outstandingBalanceCLP: loanUF * ufVal0,
@@ -183,7 +183,9 @@ function runSimulation(p: SimulationParams): SimulationResult {
       netRent = grossRent - managementFee;
     }
     const isMarketRent = m >= marketRentStart;
-    const vacancyLoss  = isMarketRent && p.vacancyDays > 0 ? grossRent * vacancyRate : 0;
+    const isVacancyMonth = isMarketRent && p.vacancyDays > 0 && (m - marketRentStart) % 12 === 0;
+    const vacancyLoss = isVacancyMonth ? grossRent * (p.vacancyDays / 30) : 0;
+    const commonCharges = isVacancyMonth ? p.commonChargesCLP : 0;
     const corretaje    = m === corretajeMonth ? p.monthlyRentCLP * 0.5 : 0;
     const reserveFund  = m === reserveFundMonth ? p.reserveFundUF * ufVal : 0;
     const pieCuota     = m >= 1 && m <= p.clientPieCuotasCount ? monthlyCuotaUF * ufVal : 0;
@@ -196,7 +198,7 @@ function runSimulation(p: SimulationParams): SimulationResult {
       principal = dividend - interest;
       mortgagePaid++;
     }
-    const netCashFlow = netRent - vacancyLoss - corretaje - reserveFund - pieCuota - dividend;
+    const netCashFlow = netRent - vacancyLoss - commonCharges - corretaje - reserveFund - pieCuota - dividend;
     cumCashFlow += netCashFlow;
     const outstandingBalanceUF  = calcBalance(loanUF, p.annualRatePercent, loanTermMonths, mortgagePaid);
     const outstandingBalanceCLP = outstandingBalanceUF * ufVal;
@@ -206,7 +208,7 @@ function runSimulation(p: SimulationParams): SimulationResult {
       ufValue: ufVal, phase,
       grossRent, managementFee, netRent,
       pieCuota, pieUpfront: 0, operationalCosts: 0,
-      corretaje, vacancyLoss, reserveFund,
+      corretaje, vacancyLoss, commonCharges, reserveFund,
       dividend, interest, principal,
       netCashFlow, cumulativeCashFlow: cumCashFlow,
       outstandingBalanceUF, outstandingBalanceCLP,
@@ -289,52 +291,54 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
     return null;
   }
 
+  const [balanceOpen, setBalanceOpen] = React.useState(false);
+
   type RowDef = {
     label: string;
-    type: 'section' | 'income' | 'expense' | 'subtotal' | 'result' | 'balance' | 'info';
+    type: 'section' | 'income' | 'expense' | 'subtotal' | 'result' | 'balance' | 'info' | 'toggle';
     fn: (d: MonthlyData) => number | string | null;
     tooltipFn?: (d: MonthlyData) => string | null;
   };
 
   const rows: RowDef[] = [
     { label: 'INGRESOS', type: 'section', fn: () => null },
-    { label: `Arriendo bruto (mercado: reaj. UF+${p.rentAnnualExtraPercent}%/año · garantizado: solo UF si aplica)`, type: 'income', fn: d => d.grossRent },
-    { label: 'GASTOS OPERACIONALES', type: 'section', fn: () => null },
-    { label: `Adm. inmobiliaria (${p.managementFeePercent}%)`, type: 'expense', fn: d => -d.managementFee },
-    { label: `Vacancia (${p.vacancyDays} días/año)`, type: 'expense', fn: d => d.vacancyLoss > 0 ? -d.vacancyLoss : null },
-    { label: 'Corretaje (50% 1er arriendo)', type: 'expense', fn: d => d.corretaje > 0 ? -d.corretaje : null },
-    { label: 'Arriendo neto', type: 'subtotal', fn: d => d.netRent - d.vacancyLoss - d.corretaje },
-    { label: 'INVERSIÓN PIE', type: 'section', fn: () => null },
+    { label: 'Arriendo bruto', type: 'income', fn: d => d.grossRent > 0 ? d.grossRent : null },
+    { label: 'GASTOS', type: 'section', fn: () => null },
     { label: 'Pie up front (contado)', type: 'expense', fn: d => d.pieUpfront > 0 ? -d.pieUpfront : null },
     { label: `Cuota pie (${p.clientPieCuotasCount} cuotas)`, type: 'expense', fn: d => d.pieCuota > 0 ? -d.pieCuota : null },
     { label: 'Gastos operacionales crédito', type: 'expense', fn: d => d.operationalCosts > 0 ? -d.operationalCosts : null },
     { label: 'Fondo de reserva inicial', type: 'expense', fn: d => d.reserveFund > 0 ? -d.reserveFund : null },
-    { label: 'DIVIDENDO HIPOTECARIO', type: 'section', fn: () => null },
+    ...(p.commonChargesCLP > 0 ? [{ label: 'Gastos comunes', type: 'expense' as const, fn: (d: MonthlyData) => d.commonCharges > 0 ? -d.commonCharges : null }] : []),
     { label: 'Fase', type: 'info', fn: d => {
       if (d.month === 0) return 'Promesa';
       if (d.phase === 'pre-delivery') return 'Construcción';
       if (d.phase === 'grace') return '⏸ Gracia';
       return null;
     }},
-    { label: 'Dividendo total', type: 'expense', fn: d => d.dividend > 0 ? -d.dividend : null,
+    { label: 'Dividendo', type: 'expense', fn: d => d.dividend > 0 ? -d.dividend : null,
       tooltipFn: d => d.dividend > 0 ? `Interés: ${fCLP(d.interest, false)}\nAmortización: ${fCLP(d.principal, false)}` : null },
+    { label: 'Corretaje (50% 1er arriendo)', type: 'expense', fn: d => d.corretaje > 0 ? -d.corretaje : null },
+    { label: `Adm. inmobiliaria (${p.managementFeePercent}%)`, type: 'expense', fn: d => d.managementFee > 0 ? -d.managementFee : null },
+    ...(p.vacancyDays > 0 ? [{ label: `Vacancia (${p.vacancyDays} días/año)`, type: 'expense' as const, fn: (d: MonthlyData) => d.vacancyLoss > 0 ? -d.vacancyLoss : null }] : []),
     { label: 'FLUJO MENSUAL', type: 'section', fn: () => null },
     { label: 'Flujo neto del mes', type: 'result', fn: d => d.netCashFlow },
     { label: 'Flujo acumulado', type: 'result', fn: d => d.cumulativeCashFlow },
-    { label: 'BALANCE AL CIERRE', type: 'section', fn: () => null },
-    { label: 'UF del período', type: 'balance', fn: d => d.ufValue },
-    { label: 'Saldo deuda (UF)', type: 'balance', fn: d => d.outstandingBalanceUF },
-    { label: 'Saldo deuda (CLP)', type: 'balance', fn: d => d.outstandingBalanceCLP },
-    { label: 'Patrimonio neto', type: 'balance', fn: d => d.equityCLP },
-    { label: 'EVENTO DE VENTA', type: 'section', fn: () => null },
-    { label: 'Precio venta (conservador)', type: 'income', fn: d => d.month === lastMonth ? R.scenario1.salePriceCLP : null },
-    { label: 'Precio venta (optimista)', type: 'income', fn: d => d.month === lastMonth ? R.scenario2.salePriceCLP : null },
-    { label: 'Saldo deuda a cancelar', type: 'expense', fn: d => d.month === lastMonth ? -d.outstandingBalanceCLP : null },
-    { label: `Patrimonio neto cons. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal', fn: d => d.month === lastMonth ? R.scenario1.netEquityCLP : null },
-    { label: `Patrimonio neto opt. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal', fn: d => d.month === lastMonth ? R.scenario2.netEquityCLP : null },
-    { label: 'GANANCIA TOTAL CON VENTA', type: 'section', fn: () => null },
-    { label: 'Resultado final (conservador)', type: 'result', fn: d => d.month === lastMonth ? R.scenario1.totalReturn : null },
-    { label: 'Resultado final (optimista)', type: 'result', fn: d => d.month === lastMonth ? R.scenario2.totalReturn : null },
+    { label: 'BALANCE AL CIERRE', type: 'toggle', fn: () => null },
+    ...(balanceOpen ? [
+      { label: 'UF del período', type: 'balance' as const, fn: (d: MonthlyData) => d.ufValue },
+      { label: 'Saldo deuda (UF)', type: 'balance' as const, fn: (d: MonthlyData) => d.outstandingBalanceUF },
+      { label: 'Saldo deuda (CLP)', type: 'balance' as const, fn: (d: MonthlyData) => d.outstandingBalanceCLP },
+      { label: 'Patrimonio neto', type: 'balance' as const, fn: (d: MonthlyData) => d.equityCLP },
+      { label: 'EVENTO DE VENTA', type: 'section' as const, fn: () => null },
+      { label: 'Precio venta (conservador)', type: 'income' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.salePriceCLP : null },
+      { label: 'Precio venta (optimista)', type: 'income' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.salePriceCLP : null },
+      { label: 'Saldo deuda a cancelar', type: 'expense' as const, fn: (d: MonthlyData) => d.month === lastMonth ? -d.outstandingBalanceCLP : null },
+      { label: `Patrimonio neto cons. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.netEquityCLP : null },
+      { label: `Patrimonio neto opt. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.netEquityCLP : null },
+      { label: 'GANANCIA TOTAL CON VENTA', type: 'section' as const, fn: () => null },
+      { label: 'Resultado final (conservador)', type: 'result' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.totalReturn : null },
+      { label: 'Resultado final (optimista)', type: 'result' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.totalReturn : null },
+    ] : []),
   ];
 
   function formatVal(row: RowDef, raw: number | string | null): string {
@@ -419,7 +423,35 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
         <tbody>
           {rows.map((row, ri) => {
             const isSection = row.type === 'section';
-            const rowBg = isSection ? '#dbeafe' : row.type === 'result' ? '#eff6ff' : row.type === 'subtotal' ? '#f0f9ff' : '#fff';
+            const isToggle  = row.type === 'toggle';
+            const rowBg = isSection || isToggle ? '#dbeafe' : row.type === 'result' ? '#eff6ff' : row.type === 'subtotal' ? '#f0f9ff' : '#fff';
+
+            if (isToggle) {
+              return (
+                <tr key={ri}>
+                  <td style={{
+                    padding: '7px 16px', background: '#dbeafe',
+                    borderRight: '2px solid #bfdbfe', borderTop: '2px solid #bfdbfe',
+                    position: 'sticky', left: 0, zIndex: 2,
+                    boxShadow: '2px 0 6px rgba(0,0,0,0.08)',
+                  }}>
+                    <button onClick={() => setBalanceOpen(v => !v)} style={{
+                      background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      fontSize: 10, fontWeight: 700, color: '#1d4ed8',
+                      textTransform: 'uppercase', letterSpacing: '0.08em',
+                    }}>
+                      <span style={{ fontSize: 12 }}>{balanceOpen ? '▼' : '▶'}</span>
+                      Balance al cierre
+                    </button>
+                  </td>
+                  {data.map(d => (
+                    <td key={d.month} style={{ background: '#dbeafe', borderLeft: '1px solid #f0f4ff', borderTop: '2px solid #bfdbfe' }} />
+                  ))}
+                </tr>
+              );
+            }
+
             return (
               <tr key={ri}>
                 <td style={{

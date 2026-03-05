@@ -70,6 +70,7 @@ interface SimulationParams {
   guaranteedRentNoAdmin: boolean;     // true = sin cobro de administración
   guaranteedRentUFAdjusted: boolean;  // true = se reajusta anualmente por UF
   vacancyDays: number;        // días de vacancia al año (0 = sin vacancia)
+  commonChargesCLP: number;   // gastos comunes mensuales CLP (solo durante vacancia concentrada)
   reserveFundUF: number;      // fondo de reserva inicial del proyecto en UF
   rentAnnualExtraPercent: number; // % extra de reajuste anual sobre UF (ej: 2 = UF+2%)
 }
@@ -93,7 +94,8 @@ interface MonthlyData {
   pieUpfront: number;     // pago al contado (sólo en mes 0)
   operationalCosts: number; // gastos operacionales del crédito (sólo en mes de escritura)
   corretaje: number;     // costo corretaje (50% primer mes arriendo mercado)
-  vacancyLoss: number;   // pérdida por vacancia (meses de arriendo mercado)
+  vacancyLoss: number;   // pérdida por vacancia (concentrada)
+  commonCharges: number; // gastos comunes (solo meses con vacancia concentrada)
   reserveFund: number;   // fondo de reserva (mes de escritura)
 
   // Dividendo
@@ -267,7 +269,7 @@ function runSimulation(p: SimulationParams): SimulationResult {
   const netMonthlyRentCLP = p.monthlyRentCLP * (1 - managementRate);
   const propertyValueCLP  = totalValueUF * p.ufValueCLP;
   const capRatePercent    = ((netMonthlyRentCLP * 12) / propertyValueCLP) * 100;
-  const vacancyRate    = p.vacancyDays / 365;
+  // vacancyRate reemplazado por lógica concentrada por año
 
   // ── Timeline ─────────────────────────────────────────────
   // Para 'immediate': escritura = mes 0, cuotas del pie en meses 1..N
@@ -292,7 +294,7 @@ function runSimulation(p: SimulationParams): SimulationResult {
     ufValue: ufVal0, phase: 'pre-delivery',
     grossRent: 0, managementFee: 0, netRent: 0,
     pieCuota: 0, pieUpfront: pieUpfront0, operationalCosts: p.operationalCostsCLP,
-    corretaje: 0, vacancyLoss: 0, reserveFund: reserveFundCLP0,
+    corretaje: 0, vacancyLoss: 0, commonCharges: 0, reserveFund: reserveFundCLP0,
     dividend: 0, interest: 0, principal: 0,
     netCashFlow: -upfrontCLP,
     cumulativeCashFlow: -upfrontCLP,
@@ -345,9 +347,11 @@ function runSimulation(p: SimulationParams): SimulationResult {
       netRent = grossRent - managementFee;
     }
 
-    // Vacancia: solo en meses de arriendo mercado
+    // Vacancia: concentrada en el primer mes de cada año de arriendo mercado
     const isMarketRent = m >= marketRentStart;
-    const vacancyLoss  = isMarketRent && p.vacancyDays > 0 ? grossRent * vacancyRate : 0;
+    const isVacancyMonth = isMarketRent && p.vacancyDays > 0 && (m - marketRentStart) % 12 === 0;
+    const vacancyLoss = isVacancyMonth ? grossRent * (p.vacancyDays / 30) : 0;
+    const commonCharges = isVacancyMonth ? p.commonChargesCLP : 0;
 
     // Corretaje: 50% del arriendo bruto, solo el primer mes de arriendo mercado
     const corretaje = m === corretajeMonth ? p.monthlyRentCLP * 0.5 : 0;
@@ -369,7 +373,7 @@ function runSimulation(p: SimulationParams): SimulationResult {
       mortgagePaid++;
     }
 
-    const netCashFlow = netRent - vacancyLoss - corretaje - reserveFund - pieCuota - dividend;
+    const netCashFlow = netRent - vacancyLoss - commonCharges - corretaje - reserveFund - pieCuota - dividend;
     cumCashFlow += netCashFlow;
 
     const outstandingBalanceUF  = calcBalance(loanUF, p.annualRatePercent, loanTermMonths, mortgagePaid);
@@ -381,7 +385,7 @@ function runSimulation(p: SimulationParams): SimulationResult {
       ufValue: ufVal, phase,
       grossRent, managementFee, netRent,
       pieCuota, pieUpfront: 0, operationalCosts: 0,
-      corretaje, vacancyLoss, reserveFund,
+      corretaje, vacancyLoss, commonCharges, reserveFund,
       dividend, interest, principal,
       netCashFlow, cumulativeCashFlow: cumCashFlow,
       outstandingBalanceUF, outstandingBalanceCLP,
@@ -479,6 +483,7 @@ const DEFAULTS: SimulationParams = {
   guaranteedRentNoAdmin: true,
   guaranteedRentUFAdjusted: false,
   vacancyDays: 0,
+  commonChargesCLP: 0,
   reserveFundUF: 0,
   rentAnnualExtraPercent: 2,
 };
@@ -920,6 +925,7 @@ function InvestmentSummary({ R, p }: { R: SimulationResult; p: SimulationParams 
 function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R: SimulationResult }) {
   const COL_W = 92;
   const LABEL_W = 210;
+  const [balanceOpen, setBalanceOpen] = useState(false);
 
   const lastMonth = R.totalTableMonths;
 
@@ -952,61 +958,66 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
 
   type RowDef = {
     label: string;
-    type: 'section' | 'income' | 'expense' | 'subtotal' | 'result' | 'balance' | 'info';
+    type: 'section' | 'income' | 'expense' | 'subtotal' | 'result' | 'balance' | 'info' | 'toggle';
     fn: (d: MonthlyData) => number | string | null;
     tooltipFn?: (d: MonthlyData) => string | null;
   };
 
   const rows: RowDef[] = [
+    // ── INGRESOS ──────────────────────────────────────────────
     { label: 'INGRESOS', type: 'section', fn: () => null },
-    { label: `Arriendo bruto (mercado: reaj. UF+${p.rentAnnualExtraPercent}%/año · garantizado: solo UF si aplica)`, type: 'income', fn: d => d.grossRent },
+    { label: `Arriendo bruto`, type: 'income', fn: d => d.grossRent > 0 ? d.grossRent : null },
 
-    { label: 'GASTOS OPERACIONALES', type: 'section', fn: () => null },
-    { label: `Adm. inmobiliaria (${p.managementFeePercent}%)`, type: 'expense', fn: d => -d.managementFee },
-    { label: `Vacancia (${p.vacancyDays} días/año)`, type: 'expense', fn: d => d.vacancyLoss > 0 ? -d.vacancyLoss : null },
-    { label: 'Corretaje (50% 1er arriendo)', type: 'expense', fn: d => d.corretaje > 0 ? -d.corretaje : null },
-    { label: 'Arriendo neto', type: 'subtotal', fn: d => d.netRent - d.vacancyLoss - d.corretaje },
-
-    { label: 'INVERSIÓN PIE', type: 'section', fn: () => null },
+    // ── GASTOS (orden: pie → gastos op → gastos comunes → dividendo → corretaje → adm → vacancia)
+    { label: 'GASTOS', type: 'section', fn: () => null },
+    // a) Pie
     { label: 'Pie up front (contado)', type: 'expense', fn: d => d.pieUpfront > 0 ? -d.pieUpfront : null },
     { label: `Cuota pie (${p.clientPieCuotasCount} cuotas)`, type: 'expense', fn: d => d.pieCuota > 0 ? -d.pieCuota : null },
+    // b) Gastos operacionales
     { label: 'Gastos operacionales crédito', type: 'expense', fn: d => d.operationalCosts > 0 ? -d.operationalCosts : null },
     { label: 'Fondo de reserva inicial', type: 'expense', fn: d => d.reserveFund > 0 ? -d.reserveFund : null },
-
-    { label: 'DIVIDENDO HIPOTECARIO', type: 'section', fn: () => null },
-    { label: 'Fase', type: 'info',
-      fn: d => {
-        if (d.month === 0) return 'Promesa';
-        if (d.phase === 'pre-delivery') return 'Construcción';
-        if (d.phase === 'grace') return '⏸ Gracia';
-        return null;
-      }
-    },
-    { label: 'Dividendo total', type: 'expense', fn: d => d.dividend > 0 ? -d.dividend : null,
+    // c) Gastos comunes (solo en meses de vacancia concentrada)
+    ...(p.commonChargesCLP > 0 ? [{ label: 'Gastos comunes', type: 'expense' as const, fn: (d: MonthlyData) => d.commonCharges > 0 ? -d.commonCharges : null }] : []),
+    // d) Dividendo
+    { label: 'Fase', type: 'info', fn: d => {
+      if (d.month === 0) return 'Promesa';
+      if (d.phase === 'pre-delivery') return 'Construcción';
+      if (d.phase === 'grace') return '⏸ Gracia';
+      return null;
+    }},
+    { label: 'Dividendo', type: 'expense', fn: d => d.dividend > 0 ? -d.dividend : null,
       tooltipFn: d => d.dividend > 0
         ? `Interés: ${fCLP(d.interest, false)}\nAmortización: ${fCLP(d.principal, false)}`
         : null },
+    // e) Corretaje
+    { label: 'Corretaje (50% 1er arriendo)', type: 'expense', fn: d => d.corretaje > 0 ? -d.corretaje : null },
+    // f) Administración
+    { label: `Adm. inmobiliaria (${p.managementFeePercent}%)`, type: 'expense', fn: d => d.managementFee > 0 ? -d.managementFee : null },
+    // Vacancia (solo si aplica)
+    ...(p.vacancyDays > 0 ? [{ label: `Vacancia (${p.vacancyDays} días/año, concentrada)`, type: 'expense' as const, fn: (d: MonthlyData) => d.vacancyLoss > 0 ? -d.vacancyLoss : null }] : []),
 
+    // ── FLUJO MENSUAL ─────────────────────────────────────────
     { label: 'FLUJO MENSUAL', type: 'section', fn: () => null },
     { label: 'Flujo neto del mes', type: 'result', fn: d => d.netCashFlow },
     { label: 'Flujo acumulado', type: 'result', fn: d => d.cumulativeCashFlow },
 
-    { label: 'BALANCE AL CIERRE', type: 'section', fn: () => null },
-    { label: 'UF del período', type: 'balance', fn: d => d.ufValue },
-    { label: 'Saldo deuda (UF)', type: 'balance', fn: d => d.outstandingBalanceUF },
-    { label: 'Saldo deuda (CLP)', type: 'balance', fn: d => d.outstandingBalanceCLP },
-    { label: 'Patrimonio neto', type: 'balance', fn: d => d.equityCLP },
-
-    { label: 'EVENTO DE VENTA', type: 'section', fn: () => null },
-    { label: 'Precio venta (conservador)', type: 'income', fn: d => d.month === lastMonth ? R.scenario1.salePriceCLP : null },
-    { label: 'Precio venta (optimista)', type: 'income', fn: d => d.month === lastMonth ? R.scenario2.salePriceCLP : null },
-    { label: 'Saldo deuda a cancelar', type: 'expense', fn: d => d.month === lastMonth ? -d.outstandingBalanceCLP : null },
-    { label: `Patrimonio neto cons. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal', fn: d => d.month === lastMonth ? R.scenario1.netEquityCLP : null },
-    { label: `Patrimonio neto opt. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal', fn: d => d.month === lastMonth ? R.scenario2.netEquityCLP : null },
-
-    { label: 'GANANCIA TOTAL CON VENTA', type: 'section', fn: () => null },
-    { label: 'Resultado final (conservador)', type: 'result', fn: d => d.month === lastMonth ? R.scenario1.totalReturn : null },
-    { label: 'Resultado final (optimista)', type: 'result', fn: d => d.month === lastMonth ? R.scenario2.totalReturn : null },
+    // ── BALANCE AL CIERRE (colapsable) ────────────────────────
+    { label: 'BALANCE AL CIERRE', type: 'toggle', fn: () => null },
+    ...(balanceOpen ? [
+      { label: 'UF del período', type: 'balance' as const, fn: (d: MonthlyData) => d.ufValue },
+      { label: 'Saldo deuda (UF)', type: 'balance' as const, fn: (d: MonthlyData) => d.outstandingBalanceUF },
+      { label: 'Saldo deuda (CLP)', type: 'balance' as const, fn: (d: MonthlyData) => d.outstandingBalanceCLP },
+      { label: 'Patrimonio neto', type: 'balance' as const, fn: (d: MonthlyData) => d.equityCLP },
+      { label: 'EVENTO DE VENTA', type: 'section' as const, fn: () => null },
+      { label: 'Precio venta (conservador)', type: 'income' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.salePriceCLP : null },
+      { label: 'Precio venta (optimista)', type: 'income' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.salePriceCLP : null },
+      { label: 'Saldo deuda a cancelar', type: 'expense' as const, fn: (d: MonthlyData) => d.month === lastMonth ? -d.outstandingBalanceCLP : null },
+      { label: `Patrimonio neto cons. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.netEquityCLP : null },
+      { label: `Patrimonio neto opt. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.netEquityCLP : null },
+      { label: 'GANANCIA TOTAL CON VENTA', type: 'section' as const, fn: () => null },
+      { label: 'Resultado final (conservador)', type: 'result' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.totalReturn : null },
+      { label: 'Resultado final (optimista)', type: 'result' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.totalReturn : null },
+    ] : []),
   ];
 
   function formatVal(row: RowDef, raw: number | string | null, d: MonthlyData): string {
@@ -1085,7 +1096,35 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
           <tbody>
             {rows.map((row, ri) => {
               const isSection = row.type === 'section';
-              const rowBg = isSection ? '#dbeafe' : row.type === 'result' ? '#eff6ff' : row.type === 'subtotal' ? '#f0f9ff' : '#fff';
+              const isToggle  = row.type === 'toggle';
+              const rowBg = isSection || isToggle ? '#dbeafe' : row.type === 'result' ? '#eff6ff' : row.type === 'subtotal' ? '#f0f9ff' : '#fff';
+
+              if (isToggle) {
+                return (
+                  <tr key={ri}>
+                    <td style={{
+                      padding: '7px 14px', background: '#dbeafe',
+                      borderRight: '2px solid #bfdbfe', borderTop: '2px solid #bfdbfe',
+                      position: 'sticky', left: 0, zIndex: 2,
+                      boxShadow: '2px 0 6px rgba(0,0,0,0.08)',
+                    }}>
+                      <button onClick={() => setBalanceOpen(v => !v)} style={{
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        fontSize: 9, fontWeight: 700, color: '#1d4ed8',
+                        textTransform: 'uppercase', letterSpacing: '0.08em',
+                      }}>
+                        <span style={{ fontSize: 12 }}>{balanceOpen ? '▼' : '▶'}</span>
+                        Balance al cierre
+                      </button>
+                    </td>
+                    {data.map(d => (
+                      <td key={d.month} style={{ background: '#dbeafe', borderLeft: '1px solid #f0f4ff', borderTop: '2px solid #bfdbfe' }} />
+                    ))}
+                  </tr>
+                );
+              }
+
               return (
                 <tr key={ri}>
                   <td style={{
@@ -1116,7 +1155,7 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
                         fontSize: isSection ? 0 : 11,
                         color, background: bg, whiteSpace: 'nowrap',
                         borderLeft: '1px solid #f0f4ff',
-                        cursor: tooltip ? 'default' : 'default',
+                        cursor: 'default',
                       }}>
                         {row.type === 'info'
                           ? (typeof raw === 'string'
@@ -1169,6 +1208,7 @@ export default function Home() {
   const [selectedAsesor, setSelectedAsesor] = useState('');
   const [isStaticView, setIsStaticView] = useState(false);
   const [hasSession, setHasSession] = useState(false);
+  const [mainView, setMainView] = useState<'params' | 'analysis'>('analysis');
 
   // Auth
   const [authed, setAuthed]         = useState(false);
@@ -1355,6 +1395,23 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Tab bar Parámetros / Análisis */}
+      {!isStaticView && (
+        <div style={{ background: '#fff', borderBottom: '2px solid #dbeafe', position: 'sticky', top: 64, zIndex: 40 }}>
+          <div style={{ maxWidth: 1600, margin: '0 auto', padding: '0 20px', display: 'flex' }}>
+            {([['params', '⚙️ Parámetros'], ['analysis', '📊 Análisis']] as const).map(([view, label]) => (
+              <button key={view} onClick={() => setMainView(view)} style={{
+                padding: '10px 22px', border: 'none', cursor: 'pointer',
+                background: 'transparent', fontSize: 12, fontWeight: 700,
+                color: mainView === view ? '#1d4ed8' : '#93b4d4',
+                borderBottom: mainView === view ? '3px solid #1d4ed8' : '3px solid transparent',
+                transition: 'all 0.15s',
+              }}>{label}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <main style={{ maxWidth: 1600, margin: '0 auto', padding: '18px 16px' }}>
 
         {/* STATIC VIEW BANNER */}
@@ -1382,8 +1439,8 @@ export default function Home() {
           </div>
         )}
 
-        {/* KPI STRIP */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 12 }}>
+        {/* KPI STRIP - solo en análisis */}
+        <div style={{ display: (mainView === 'analysis' || isStaticView) ? 'grid' : 'none', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 12 }}>
           <KpiCard label="Dividendo mensual" icon="🏦" value={fCLP(R.monthlyPaymentCLP, false)}
             sub={`${fUF(R.monthlyPaymentUF)} / mes`} type="blue" />
           <KpiCard label="Arriendo neto" icon="🏠" value={fCLPFull(R.netMonthlyRentCLP)}
@@ -1402,16 +1459,16 @@ export default function Home() {
             sub={cuotaLabel} type={R.monthlyCuotaUF > 0 ? 'negative' : 'positive'} />
         </div>
 
-        {/* INVESTMENT SUMMARY + COMPACT SCENARIOS */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+        {/* INVESTMENT SUMMARY + COMPACT SCENARIOS - solo en análisis */}
+        <div style={{ display: (mainView === 'analysis' || isStaticView) ? 'grid' : 'none', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
           <InvestmentSummary R={R} p={p} />
           <CompactScenarios R={R} p={p} />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: isStaticView ? '1fr' : '300px 1fr', gap: 20, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20, alignItems: 'start' }}>
 
-          {/* ── SIDEBAR ─────────────────────────────────── */}
-          <aside style={{ display: isStaticView ? 'none' : 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* ── SIDEBAR / PARÁMETROS ─────────────────────────────────── */}
+          <aside style={{ display: (!isStaticView && mainView === 'params') ? 'flex' : 'none', flexDirection: 'column', gap: 14, maxWidth: 660, margin: '0 auto', width: '100%' }}>
             <div style={CARD}>
               <div style={{ padding: '14px 16px 8px' }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Parámetros</p>
@@ -1454,7 +1511,7 @@ export default function Home() {
                       onChange={e => set('commune', e.target.value)}
                       style={{ ...INPUT_S, flex: 1 }}
                     >
-                      {Object.keys(COMUNAS).map(c => (
+                      {Object.keys(COMUNAS).sort((a, b) => a.localeCompare(b, 'es')).map(c => (
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </select>
@@ -1771,10 +1828,37 @@ export default function Home() {
                     />
                     {p.vacancyDays > 0 && (
                       <p style={{ fontSize: 10, color: '#dc2626', marginTop: 4 }}>
-                        Reduce ingresos en {fCLPFull(p.monthlyRentCLP * p.vacancyDays / 365)}/mes promedio
+                        Se muestra concentrado 1 vez/año de arriendo ({fCLPFull(Math.round(p.monthlyRentCLP * p.vacancyDays / 30))} ese mes)
                       </p>
                     )}
                   </div>
+
+                  {p.vacancyDays > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 11, color: '#4a7abf' }}>Gastos comunes en vacancia (CLP/mes)</span>
+                        <span style={{ fontSize: 10, color: '#6b93c4' }}>solo cuando está vacío</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                        <span style={{ background: '#e8f0fb', border: '1px solid #c3d8f7', borderRight: 'none', borderRadius: '8px 0 0 8px', padding: '0 10px', fontSize: 13, color: '#4a7abf', fontWeight: 600, height: 34, display: 'flex', alignItems: 'center' }}>$</span>
+                        <input
+                          style={{ ...INPUT_S, flex: 1, borderRadius: '0 8px 8px 0', marginBottom: 0 }}
+                          value={p.commonChargesCLP === 0 ? '' : p.commonChargesCLP.toLocaleString('es-CL')}
+                          placeholder="ej: 50.000"
+                          onChange={e => {
+                            const raw = e.target.value.replace(/\./g, '').replace(/[^\d]/g, '');
+                            set('commonChargesCLP', parseInt(raw) || 0);
+                          }}
+                          inputMode="numeric"
+                        />
+                      </div>
+                      {p.commonChargesCLP > 0 && (
+                        <p style={{ fontSize: 10, color: '#dc2626', marginTop: 4 }}>
+                          {fCLPFull(p.commonChargesCLP)}/mes mientras el depto esté vacío
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -1896,8 +1980,8 @@ export default function Home() {
             </div>
           </aside>
 
-          {/* ── MAIN CONTENT ──────────────────────────────── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {/* ── ANÁLISIS (gráficos + flujo) ──────────────────────────────── */}
+          <div style={{ display: (isStaticView || mainView === 'analysis') ? 'flex' : 'none', flexDirection: 'column', gap: 18 }}>
 
             {/* Flujo mensual chart */}
             <div style={CARD}>
