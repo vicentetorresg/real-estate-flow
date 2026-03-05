@@ -707,8 +707,9 @@ function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorCh
   const shareLink = getShareLink(mode);
 
   const [insightsText, setInsightsText] = React.useState('');
-  const [insightsLoading, setInsightsLoading] = React.useState(false);
+  const [insightsLoading, setInsightsLoading] = React.useState(true);
   const [includeInsights, setIncludeInsights] = React.useState<boolean | null>(null);
+  const [insightsError, setInsightsError] = React.useState('');
   const insightsScrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -740,7 +741,12 @@ function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorCh
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ p, r }),
         });
-        const reader = res.body!.getReader();
+        if (!res.ok || !res.body) {
+          const errText = await res.text();
+          if (!cancelled) setInsightsError(errText || 'Error al generar análisis');
+          return;
+        }
+        const reader = res.body.getReader();
         const decoder = new TextDecoder();
         while (!cancelled) {
           const { done, value } = await reader.read();
@@ -864,9 +870,11 @@ function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorCh
                 background: '#f8fbff', border: '1px solid #dbeafe', borderRadius: 12,
                 padding: '14px 16px', marginBottom: 16, maxHeight: 340, overflowY: 'auto', minHeight: 100,
               }}>
-                {insightsText
-                  ? renderInsights(insightsText)
-                  : <p style={{ fontSize: 11, color: '#93b4d4', textAlign: 'center', paddingTop: 30 }}>Generando...</p>}
+                {insightsError
+                  ? <p style={{ fontSize: 11, color: '#dc2626', textAlign: 'center', paddingTop: 20 }}>{insightsError}</p>
+                  : insightsText
+                    ? renderInsights(insightsText)
+                    : <p style={{ fontSize: 11, color: '#93b4d4', textAlign: 'center', paddingTop: 30 }}>Generando...</p>}
               </div>
               {insightsLoading ? (
                 <button disabled style={{ width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: '#c4b5fd', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'not-allowed' }}>

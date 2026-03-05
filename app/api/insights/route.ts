@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+export const maxDuration = 30;
 
 function fCLP(v: number) {
   if (!isFinite(v)) return '-';
@@ -13,10 +13,23 @@ function fCLP(v: number) {
 function fPct(v: number) { return `${v.toFixed(1)}%`; }
 
 export async function POST(req: NextRequest) {
-  const { p, r } = await req.json();
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return new Response('Error: ANTHROPIC_API_KEY no configurada', { status: 500 });
+  }
 
-  const totalValueUF = p.propertyValueUF + p.parkingCount * p.parkingValueUF + p.storageCount * p.storageValueUF;
-  const nombre = p.clientName ? p.clientName.split(' ')[0] : 'ti';
+  let body: { p: Record<string, unknown>; r: Record<string, unknown> };
+  try {
+    body = await req.json();
+  } catch {
+    return new Response('Error: body inválido', { status: 400 });
+  }
+
+  const { p, r } = body;
+  const client = new Anthropic({ apiKey });
+
+  const totalValueUF = (p.propertyValueUF as number) + (p.parkingCount as number) * (p.parkingValueUF as number) + (p.storageCount as number) * (p.storageValueUF as number);
+  const nombre = p.clientName ? (p.clientName as string).split(' ')[0] : 'ti';
 
   const prompt = `Eres un asesor inmobiliario amable, cercano y honesto. Acabas de preparar una simulación personalizada para ${nombre} y quieres explicarle, en palabras simples y cálidas, qué significa esta inversión para su futuro.
 
@@ -24,18 +37,18 @@ Escribe como si le hablaras directamente a ${nombre}. Usa "tú". Sin tecnicismos
 
 DATOS DE LA SIMULACIÓN:
 - Proyecto: ${p.projectName || 'Propiedad'} · ${p.commune || ''}
-- Valor: UF ${totalValueUF.toFixed(0)} (≈ ${fCLP(totalValueUF * p.ufValueCLP)})
-- Lo que pones tú al inicio: UF ${Number(r.clientPieUF).toFixed(1)} (${fCLP(r.clientPieUF * p.ufValueCLP)})
-- Lo que pagas al banco cada mes (dividendo): ${fCLP(r.monthlyPaymentCLP)}
-- Lo que recibes de arriendo (neto): ${fCLP(r.netMonthlyRentCLP)}
-- Diferencia mes a mes: ${fCLP(r.netMonthlyRentCLP - r.monthlyPaymentCLP)}
+- Valor: UF ${totalValueUF.toFixed(0)} (≈ ${fCLP(totalValueUF * (p.ufValueCLP as number))})
+- Lo que pones tú al inicio: UF ${Number(r.clientPieUF).toFixed(1)} (${fCLP((r.clientPieUF as number) * (p.ufValueCLP as number))})
+- Lo que pagas al banco cada mes (dividendo): ${fCLP(r.monthlyPaymentCLP as number)}
+- Lo que recibes de arriendo (neto): ${fCLP(r.netMonthlyRentCLP as number)}
+- Diferencia mes a mes: ${fCLP((r.netMonthlyRentCLP as number) - (r.monthlyPaymentCLP as number))}
 - Tipo de entrega: ${p.deliveryType === 'future' ? `Entrega en ${p.constructionMonths} meses` : 'Entrega inmediata'}
-${p.gracePeriodMonths > 0 ? `- Gracia hipotecaria: ${p.gracePeriodMonths} meses sin dividendo al inicio` : ''}
-${p.guaranteedRentEnabled ? `- Arriendo garantizado: ${fCLP(p.guaranteedRentCLP)}/mes por ${p.guaranteedRentMonths} meses desde la entrega` : ''}
+${(p.gracePeriodMonths as number) > 0 ? `- Gracia hipotecaria: ${p.gracePeriodMonths} meses sin dividendo al inicio` : ''}
+${p.guaranteedRentEnabled ? `- Arriendo garantizado: ${fCLP(p.guaranteedRentCLP as number)}/mes por ${p.guaranteedRentMonths} meses desde la entrega` : ''}
 
 SI VENDES EN ${p.analysisYears} AÑOS:
-- Escenario moderado: ganarías ${fCLP(r.scenario1.totalReturn)} — un ${fPct(r.scenario1.annualizedRoiPercent)} al año
-- Escenario optimista: ganarías ${fCLP(r.scenario2.totalReturn)} — un ${fPct(r.scenario2.annualizedRoiPercent)} al año
+- Escenario moderado: ganarías ${fCLP((r.scenario1 as Record<string, number>).totalReturn)} — un ${fPct((r.scenario1 as Record<string, number>).annualizedRoiPercent)} al año
+- Escenario optimista: ganarías ${fCLP((r.scenario2 as Record<string, number>).totalReturn)} — un ${fPct((r.scenario2 as Record<string, number>).annualizedRoiPercent)} al año
 
 Escribe el análisis con estas secciones (usa ## para los títulos, sin asteriscos ni bullet points — solo texto fluido):
 
@@ -54,25 +67,34 @@ Explica los dos escenarios de manera simple. Compara el retorno con algo que ${n
 ## El próximo paso es tuyo
 Cierra con 2-3 oraciones cálidas y motivadoras. Invita a ${nombre} a resolver sus dudas con el asesor y a dar el siguiente paso con confianza.`;
 
-  const stream = await client.messages.stream({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 1000,
-    messages: [{ role: 'user', content: prompt }],
-  });
+  try {
+    const stream = await client.messages.stream({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }],
+    });
 
-  const encoder = new TextEncoder();
-  const readable = new ReadableStream({
-    async start(controller) {
-      for await (const chunk of stream) {
-        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-          controller.enqueue(encoder.encode(chunk.delta.text));
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+              controller.enqueue(encoder.encode(chunk.delta.text));
+            }
+          }
+        } catch (e) {
+          controller.enqueue(encoder.encode(`\n\nError al generar análisis: ${e}`));
         }
-      }
-      controller.close();
-    },
-  });
+        controller.close();
+      },
+    });
 
-  return new Response(readable, {
-    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-  });
+    return new Response(readable, {
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  } catch (e) {
+    console.error('Insights API error:', e);
+    return new Response(`Error al conectar con IA: ${e}`, { status: 500 });
+  }
 }
