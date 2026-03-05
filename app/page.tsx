@@ -970,12 +970,12 @@ function CompactScenarios({ R, p }: { R: SimulationResult; p: SimulationParams }
   const { month: sm, year: sy } = addMonths(escrituraMes.month, escrituraMes.year, p.analysisYears * 12);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+    <div style={{ display: 'flex', gap: 10 }}>
       {([
         { label: 'Escenario Conservador', s: R.scenario1, ann: R.effectiveAnnual1, total: R.totalApprec1, color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
         { label: 'Escenario Optimista',   s: R.scenario2, ann: R.effectiveAnnual2, total: R.totalApprec2, color: '#15803d', bg: '#f0fdf4', border: '#86efac' },
       ] as const).map(({ label, s, ann, total, color, bg, border }) => (
-        <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 12, padding: '12px 14px' }}>
+        <div key={label} style={{ width: 220, flexShrink: 0, background: bg, border: `1px solid ${border}`, borderRadius: 12, padding: '12px 14px' }}>
           <p style={{ fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</p>
           <p style={{ fontSize: 10, color: '#6b93c4', marginBottom: 8 }}>
             {fPct(ann, 1)}/año · +{fPct(total, 1)} en {p.analysisYears}a · Venta {ML[sm]} {sy}
@@ -1343,7 +1343,7 @@ function SalesSummaryBox({ R, p }: { R: SimulationResult; p: SimulationParams })
   ];
 
   return (
-    <div style={{ ...CARD, padding: '14px 18px' }}>
+    <div style={{ ...CARD, padding: '14px 18px', width: 360, flexShrink: 0 }}>
       <p style={{ fontSize: 10, fontWeight: 700, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
         Resumen de Venta
       </p>
@@ -2362,7 +2362,7 @@ export default function Home() {
             </div>
 
             {/* Resumen al final del flujo: tabla escenarios + resumen venta */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               <CompactScenarios R={R} p={p} />
               <SalesSummaryBox R={R} p={p} />
             </div>
