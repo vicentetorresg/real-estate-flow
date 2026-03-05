@@ -628,8 +628,10 @@ export default function FlujoPage() {
   const [p, setP] = useState<SimulationParams | null>(null);
   const [asesorName, setAsesorName] = useState('');
   const [asesorPhone, setAsesorPhone] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
+    setIsMobile(window.innerWidth < 768);
     try {
       const params = new URLSearchParams(window.location.search);
       const s = params.get('s');
@@ -638,6 +640,25 @@ export default function FlujoPage() {
       setAsesorPhone(params.get('asesorPhone') || '56994366697');
     } catch {}
   }, []);
+
+  if (isMobile) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#1d4ed8,#0284c7)', fontFamily: 'system-ui,sans-serif', padding: '32px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 56, marginBottom: 24 }}>💻</div>
+        <h1 style={{ fontSize: 22, fontWeight: 900, color: '#fff', margin: '0 0 12px', lineHeight: 1.3 }}>
+          Este flujo está optimizado para computador
+        </h1>
+        <p style={{ fontSize: 15, color: '#bfdbfe', lineHeight: 1.7, margin: '0 0 32px', maxWidth: 320 }}>
+          Para ver tu plan de inversión con todos los detalles, por favor ábrelo desde un computador o laptop.
+        </p>
+        <div style={{ background: '#ffffff15', borderRadius: 14, padding: '16px 24px', border: '1px solid #ffffff30' }}>
+          <p style={{ fontSize: 12, color: '#93c5fd', margin: 0 }}>
+            📧 Revisa tu correo desde el computador y haz clic en el enlace nuevamente.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const R = useMemo(() => (p ? runSimulation(p) : null), [p]);
 
