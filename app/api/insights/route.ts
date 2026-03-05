@@ -51,18 +51,19 @@ SI VENDES EN ${p.analysisYears} AÑOS:
 - Escenario optimista: ganarías ${fCLP((r.scenario2 as Record<string, number>).totalReturn)} — un ${fPct((r.scenario2 as Record<string, number>).annualizedRoiPercent)} al año
 
 INSTRUCCIONES DE TONO Y FORMATO:
-- Escribe como si fueras el asesor enviándole un mensaje personal a ${nombre}, no un reporte
-- Corto y directo: máximo 200 palabras en total
-- Usa **negritas** (con doble asterisco) para resaltar los números clave y las ideas más importantes
-- Sin secciones ni títulos — solo 3 párrafos fluidos y naturales
-- Que suene humano, cercano, como un mensaje de WhatsApp largo o un email personal
+- Tono ejecutivo, profesional y directo. No informal, no coloquial.
+- Escribe en segunda persona ("usted" no, usa "tú" pero con registro formal)
+- Máximo 130 palabras en total
+- Usa **negritas** (con doble asterisco) para los números clave solamente
+- Sin secciones ni títulos — exactamente 3 párrafos cortos
+- Cada párrafo: máximo 2-3 oraciones. Sin relleno, sin frases vacías.
 
-CONCEPTO CLAVE que debes transmitir con naturalidad: aunque el dividendo sea mayor al arriendo, la diferencia no es capital perdido — cada pago al banco está amortizando la deuda, es decir, acumulando patrimonio. Cada mes que pasa, ${nombre} debe menos y es más dueño/a. El arriendo paga una parte, y lo que resta construye riqueza propia. Eso es lo que hace especial a la inversión inmobiliaria.
+CONCEPTO CLAVE a transmitir con precisión: aunque el dividendo supere al arriendo, la diferencia no es un gasto — es amortización de deuda. Cada mes, el saldo hipotecario baja y el patrimonio sube, independiente de la plusvalía. El arriendo financia parcialmente el dividendo; el resto construye capital propio.
 
 Escribe exactamente 3 párrafos, sin títulos:
-1. Párrafo de enganche: explica la lógica de la inversión de forma simple y cercana, con los números reales. Destaca el concepto de amortización.
-2. Párrafo de retorno: menciona cuánto podría crecer tu patrimonio al vender en ${p.analysisYears} años en ambos escenarios. Hazlo emocionante pero honesto.
-3. Párrafo de cierre: una frase motivadora y personal que invite a dar el siguiente paso.`;
+1. La lógica de la inversión: banco financia el ${p.financingPercent}%, el arriendo cubre parte del dividendo, cada cuota amortiza deuda y acumula patrimonio. Con números reales.
+2. El retorno proyectado: en ${p.analysisYears} años, los dos escenarios con cifras exactas. Claro y ejecutivo.
+3. Cierre: una sola oración que invite a avanzar. Sin adjetivos de más.`;
 
   try {
     const stream = await client.messages.stream({
