@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import PdfExport from './components/PdfExport';
+import PdfExport, { generatePdfBase64 } from './components/PdfExport';
 import RutInput from './components/RutInput';
 import {
   ComposedChart, Bar, Cell, Line, XAxis, YAxis, CartesianGrid,
@@ -784,10 +784,11 @@ function SendModal({ p, R, getShareLink, onClose, defaultAsesor = '', onAsesorCh
     if (!to) return;
     setSending(true); setError('');
     try {
+      const pdfBase64 = await generatePdfBase64(p, R, p.clientName, p.clientRut, asesor).catch(() => null);
       const res = await fetch('/api/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, clientName: p.clientName, clientRut: p.clientRut, shareLink: clientShareLink, mode, projectName: p.projectName, asesorName: asesor, asesorEmail: asesorObj?.email ?? null, commune: p.commune, insights: insightsText || undefined }),
+        body: JSON.stringify({ to, clientName: p.clientName, clientRut: p.clientRut, shareLink: clientShareLink, mode, projectName: p.projectName, asesorName: asesor, asesorEmail: asesorObj?.email ?? null, commune: p.commune, insights: insightsText || undefined, pdfBase64: pdfBase64 || undefined }),
       });
       if (!res.ok) throw new Error('Error');
       setStep('sent');

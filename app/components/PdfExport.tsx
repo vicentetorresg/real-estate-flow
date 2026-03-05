@@ -1,5 +1,7 @@
 'use client';
 import React, { useRef, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import RutInput from './RutInput';
 
 const ASESORES = ['Diego Sánchez', 'Cristóbal Sepúlveda', 'Matías Bertelsen', 'Vicente Torres'];
@@ -342,6 +344,40 @@ function PdfTemplate({ p, R, clientName, clientRut, asesor }: {
       </div>
     </div>
   );
+}
+
+// ─── Standalone PDF generator (for email attachment) ─────────
+export async function generatePdfBase64(
+  p: SimulationParams,
+  R: SimulationResult,
+  clientName: string,
+  clientRut: string,
+  asesor: string,
+): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  const html2canvasMod = await import('html2canvas');
+  const html2canvas = html2canvasMod.default;
+  const { jsPDF } = await import('jspdf');
+
+  const container = document.createElement('div');
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;display:inline-block;z-index:-1;';
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    flushSync(() => {
+      root.render(React.createElement(PdfTemplate, { p, R, clientName, clientRut, asesor }));
+    });
+    const el = container.firstElementChild as HTMLElement;
+    if (!el) return null;
+    const canvas = await html2canvas(el, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [canvas.width / 2, canvas.height / 2] });
+    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+    return pdf.output('datauristring').split(',')[1];
+  } finally {
+    root.unmount();
+    document.body.removeChild(container);
+  }
 }
 
 // ─── Modal ────────────────────────────────────────────────────
