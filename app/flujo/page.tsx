@@ -340,8 +340,8 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
       { label: 'Precio venta (conservador)', type: 'income' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.salePriceCLP : null },
       { label: 'Precio venta (optimista)', type: 'income' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.salePriceCLP : null },
       { label: 'Saldo deuda a cancelar', type: 'expense' as const, fn: (d: MonthlyData) => d.month === lastMonth ? -d.outstandingBalanceCLP : null },
-      { label: `Patrimonio neto cons. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.netEquityCLP : null },
-      { label: `Patrimonio neto opt. (neto ${p.saleCostPercent}% gastos)`, type: 'subtotal' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.netEquityCLP : null },
+      { label: `Patrimonio neto cons. (neto 2,38% corretaje)`, type: 'subtotal' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario1.netEquityCLP : null },
+      { label: `Patrimonio neto opt. (neto 2,38% corretaje)`, type: 'subtotal' as const, fn: (d: MonthlyData) => d.month === lastMonth ? R.scenario2.netEquityCLP : null },
     ] : []),
   ];
 
@@ -524,7 +524,7 @@ export default function FlujoPage() {
     try {
       const params = new URLSearchParams(window.location.search);
       const s = params.get('s');
-      if (s) setP(JSON.parse(atob(s)));
+      if (s) setP({ ...JSON.parse(atob(s)), saleCostPercent: 2.38 });
     } catch {}
   }, []);
 

@@ -472,7 +472,7 @@ const DEFAULTS: SimulationParams = {
   baseAnnualAppreciationPercent: 5,
   scenario1FactorPercent: 30,
   scenario2FactorPercent: 70,
-  saleCostPercent: 2, startMonth: 2, startYear: 2026,
+  saleCostPercent: 2.38, startMonth: 2, startYear: 2026,
   projectName: '',
   clientName: '', clientRut: '', clientEmail: '',
   parkingCount: 0, parkingValueUF: 300, parkingBonoPie: true,
@@ -1316,6 +1316,131 @@ function FlowTable({ data, p, R }: { data: MonthlyData[]; p: SimulationParams; R
   );
 }
 
+// ─── SalesSummaryBox ─────────────────────────────────────────
+function SalesSummaryBox({ R, p }: { R: SimulationResult; p: SimulationParams }) {
+  const last = R.monthlyData[R.monthlyData.length - 1];
+  const lastUF = last.ufValue;
+  const apreciacionUF1 = R.scenario1.salePriceUF - R.totalValueUF;
+  const apreciacionUF2 = R.scenario2.salePriceUF - R.totalValueUF;
+  const amortizacionUF1 = R.loanUF - R.scenario1.outstandingBalanceUF;
+  const amortizacionUF2 = R.loanUF - R.scenario2.outstandingBalanceUF;
+
+  const rows: [string, string, string][] = [
+    ['Precio compra inicial (UF)',  fUF(R.totalValueUF, 0),               fUF(R.totalValueUF, 0)],
+    ['Precio compra inicial (CLP)', fCLP(R.totalValueUF * p.ufValueCLP, false), fCLP(R.totalValueUF * p.ufValueCLP, false)],
+    ['Precio de venta (UF)',        fUF(R.scenario1.salePriceUF, 0),      fUF(R.scenario2.salePriceUF, 0)],
+    ['Precio de venta (CLP)',       fCLP(R.scenario1.salePriceCLP, false), fCLP(R.scenario2.salePriceCLP, false)],
+    ['Ganancia plusvalía (UF)',     fUF(apreciacionUF1, 0),               fUF(apreciacionUF2, 0)],
+    ['Ganancia plusvalía (CLP)',    fCLP(apreciacionUF1 * lastUF, false),  fCLP(apreciacionUF2 * lastUF, false)],
+    ['Deuda hipot. inicial (UF)',   fUF(R.loanUF, 0),                     fUF(R.loanUF, 0)],
+    ['Deuda hipot. al vender (UF)', fUF(R.scenario1.outstandingBalanceUF, 0), fUF(R.scenario2.outstandingBalanceUF, 0)],
+    ['Amortización (UF)',           fUF(amortizacionUF1, 0),              fUF(amortizacionUF2, 0)],
+    ['Amortización (CLP)',          fCLP(amortizacionUF1 * lastUF, false), fCLP(amortizacionUF2 * lastUF, false)],
+    ['Inversión total',             fCLP(R.totalNegativeCashFlow, false), fCLP(R.totalNegativeCashFlow, false)],
+    ['Utilidad del ejercicio',      fCLP(R.scenario1.totalReturn, false), fCLP(R.scenario2.totalReturn, false)],
+    ['ROI Neto',                    fPct(R.scenario1.roiPercent, 1),      fPct(R.scenario2.roiPercent, 1)],
+    ['Cap Rate',                    fPct(R.capRatePercent),               fPct(R.capRatePercent)],
+  ];
+
+  return (
+    <div style={{ ...CARD, padding: '14px 18px' }}>
+      <p style={{ fontSize: 10, fontWeight: 700, color: '#6b93c4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+        Resumen de Venta
+      </p>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: 'left', padding: '5px 8px', borderBottom: '2px solid #dbeafe', color: '#6b93c4', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Concepto</th>
+            <th style={{ textAlign: 'right', padding: '5px 8px', borderBottom: '2px solid #dbeafe', color: '#1d4ed8', fontSize: 9, textTransform: 'uppercase' }}>Conservador</th>
+            <th style={{ textAlign: 'right', padding: '5px 8px', borderBottom: '2px solid #dbeafe', color: '#15803d', fontSize: 9, textTransform: 'uppercase' }}>Optimista</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([lbl, v1, v2], i) => (
+            <tr key={i} style={{ borderBottom: '1px solid #f0f4ff' }}>
+              <td style={{ padding: '4px 8px', color: '#6b93c4', fontSize: 10 }}>{lbl}</td>
+              <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#1d4ed8', fontSize: 11 }}>{v1}</td>
+              <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#15803d', fontSize: 11 }}>{v2}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── PlusvaliasModal ──────────────────────────────────────────
+function PlusvaliasModal({ onClose, appreciations, onChange }: {
+  onClose: () => void;
+  appreciations: Record<string, number>;
+  onChange: (commune: string, value: number) => void;
+}) {
+  const [search, setSearch] = React.useState('');
+  const comunas = Object.keys(COMUNAS).sort((a, b) => a.localeCompare(b, 'es'));
+  const filtered = search ? comunas.filter(c => c.toLowerCase().includes(search.toLowerCase())) : comunas;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: '#00000070', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 680, boxShadow: '0 24px 80px #0004', overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: 'linear-gradient(135deg, #1d4ed8, #7c3aed)', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 2 }}>Plusvalias por Comuna</h2>
+            <p style={{ fontSize: 12, color: '#c4b5fd' }}>Tasa anual estimada de apreciacion por comuna de Chile — editable</p>
+          </div>
+          <button onClick={onClose} style={{ background: '#ffffff20', border: 'none', cursor: 'pointer', width: 32, height: 32, borderRadius: 8, color: '#fff', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>x</button>
+        </div>
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid #dbeafe', flexShrink: 0 }}>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar comuna..."
+            style={{ ...INPUT_S, width: '100%' }}
+          />
+        </div>
+        <div style={{ overflowY: 'auto', flex: 1, padding: '0 24px 12px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>
+              <tr>
+                <th style={{ textAlign: 'left', padding: '10px 8px', borderBottom: '2px solid #dbeafe', color: '#6b93c4', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Comuna</th>
+                <th style={{ textAlign: 'right', padding: '10px 8px', borderBottom: '2px solid #dbeafe', color: '#6b93c4', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Plusvalia anual (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(commune => (
+                <tr key={commune} style={{ borderBottom: '1px solid #f0f4ff' }}>
+                  <td style={{ padding: '6px 8px', color: '#0f2957', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: COMUNAS[commune] ?? '#94a3b8', display: 'inline-block', flexShrink: 0 }} />
+                    {commune}
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="20"
+                        value={appreciations[commune] ?? ''}
+                        onChange={e => onChange(commune, parseFloat(e.target.value) || 0)}
+                        placeholder="—"
+                        style={{ width: 70, textAlign: 'right', background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '4px 8px', fontSize: 12, color: '#0f2957', outline: 'none' }}
+                      />
+                      <span style={{ fontSize: 11, color: '#6b93c4', width: 14 }}>%</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtered.length === 0 && <p style={{ textAlign: 'center', color: '#93b4d4', padding: 20, fontSize: 12 }}>No se encontraron comunas</p>}
+        </div>
+        <div style={{ padding: '10px 24px', borderTop: '1px solid #dbeafe', flexShrink: 0, fontSize: 11, color: '#93b4d4', textAlign: 'center' }}>
+          Los cambios se guardan automaticamente en este dispositivo
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // AUTH
 // ─────────────────────────────────────────────────────────────
@@ -1338,6 +1463,9 @@ export default function Home() {
   const [tab, setTab] = useState<'prop' | 'credit' | 'pie' | 'rent' | 'exit' | 'cliente'>('prop');
   const [showSendModal, setShowSendModal] = useState(false);
   const [showMap, setShowMap]             = useState(false);
+  const [showPlusvaliasTable, setShowPlusvaliasTable] = useState(false);
+  const [communeAppreciations, setCommuneAppreciations] = useState<Record<string, number>>({});
+  const [useTableAppreciation, setUseTableAppreciation] = useState(false);
   const [saved, setSaved] = useState(false);
   const [selectedAsesor, setSelectedAsesor] = useState('');
   const [isStaticView, setIsStaticView] = useState(false);
@@ -1359,13 +1487,17 @@ export default function Home() {
       const params = new URLSearchParams(window.location.search);
       const s = params.get('s');
       const mode = params.get('mode');
-      if (s) setP(prev => ({ ...prev, ...JSON.parse(atob(s)) }));
+      if (s) setP(prev => ({ ...prev, ...JSON.parse(atob(s)), saleCostPercent: 2.38 }));
       if (mode === 'static') setIsStaticView(true);
       if (mode === 'static' || mode === 'dynamic') setIsClientLink(true);
     } catch {}
     try {
       const sess = localStorage.getItem('cotiz_session');
       if (sess) { const { role } = JSON.parse(sess); if (role) { setAuthed(true); setHasSession(true); setTab('prop'); } }
+    } catch {}
+    try {
+      const saved = localStorage.getItem('communeAppreciations');
+      if (saved) setCommuneAppreciations(JSON.parse(saved));
     } catch {}
     // Auto-fetch UF del día desde mindicador.cl
     const hasUrlParams = new URLSearchParams(window.location.search).get('s');
@@ -1397,6 +1529,29 @@ export default function Home() {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }, [p]);
+
+  const handleCommuneAppreciationChange = (commune: string, value: number) => {
+    const updated = { ...communeAppreciations, [commune]: value };
+    setCommuneAppreciations(updated);
+    try { localStorage.setItem('communeAppreciations', JSON.stringify(updated)); } catch {}
+    if (useTableAppreciation && commune === p.commune) {
+      set('baseAnnualAppreciationPercent', value);
+    }
+  };
+
+  const handleUseTableToggle = (checked: boolean) => {
+    setUseTableAppreciation(checked);
+    if (checked && communeAppreciations[p.commune] !== undefined) {
+      set('baseAnnualAppreciationPercent', communeAppreciations[p.commune]);
+    }
+  };
+
+  React.useEffect(() => {
+    if (useTableAppreciation && communeAppreciations[p.commune] !== undefined) {
+      set('baseAnnualAppreciationPercent', communeAppreciations[p.commune]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.commune, useTableAppreciation]);
 
   const getShareLink = useCallback((mode: 'static' | 'dynamic' = 'dynamic') => {
     const base = typeof window !== 'undefined' ? window.location.origin : '';
@@ -1499,11 +1654,17 @@ export default function Home() {
                 }}>
                   📋 Historial
                 </a>
+                <button onClick={() => setShowPlusvaliasTable(true)} style={{
+                  padding: '6px 14px', borderRadius: 20, border: '1px solid #ffffff40',
+                  background: '#7c3aed', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                }}>
+                  Plusvalias
+                </button>
                 <button onClick={() => setShowMap(true)} style={{
                   padding: '6px 14px', borderRadius: 20, border: '1px solid #ffffff40',
                   background: '#0369a1', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer',
                 }}>
-                  🗺️ Mapa interactivo
+                  Mapa interactivo
                 </button>
                 <button onClick={() => { handleSave(); setShowSendModal(true); }} style={{
                   padding: '6px 14px', borderRadius: 20, border: '1px solid #ffffff60',
@@ -2028,8 +2189,37 @@ export default function Home() {
 
                 {/* ── TAB: SALIDA ── */}
                 {tab === 'exit' && <>
-                  <Slider label="Plusvalía base anual de la zona (0–10%)" value={p.baseAnnualAppreciationPercent} min={0} max={10} step={0.5}
-                    display={`${p.baseAnnualAppreciationPercent}%/año`} onChange={v => set('baseAnnualAppreciationPercent', v)} />
+                  {/* Checkbox: usar tabla de plusvalías */}
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={useTableAppreciation} onChange={e => handleUseTableToggle(e.target.checked)}
+                      style={{ width: 14, height: 14, accentColor: '#7c3aed', marginTop: 2, flexShrink: 0 }} />
+                    <span>
+                      <span style={{ fontSize: 11, color: '#0f2957', fontWeight: 600 }}>Usar plusvalia de tabla por comuna</span>
+                      <span style={{ display: 'block', fontSize: 10, color: '#6b93c4', marginTop: 2 }}>
+                        {useTableAppreciation
+                          ? communeAppreciations[p.commune] !== undefined
+                            ? `Usando ${communeAppreciations[p.commune]}%/año segun tabla para ${p.commune}`
+                            : `Sin dato en tabla para ${p.commune} — ingresa el valor en "Plusvalias"`
+                          : 'Modo manual — ajusta el valor abajo'}
+                      </span>
+                    </span>
+                  </label>
+                  {useTableAppreciation ? (
+                    <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>Plusvalia anual ({p.commune})</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: '#7c3aed', fontFamily: 'monospace' }}>
+                          {communeAppreciations[p.commune] !== undefined ? `${communeAppreciations[p.commune]}%/año` : '—'}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+                        Para modificar, usa el boton "Plusvalias" en el header
+                      </p>
+                    </div>
+                  ) : (
+                    <Slider label="Plusvalia base anual de la zona (0–10%)" value={p.baseAnnualAppreciationPercent} min={0} max={10} step={0.5}
+                      display={`${p.baseAnnualAppreciationPercent}%/año`} onChange={v => set('baseAnnualAppreciationPercent', v)} />
+                  )}
                   <div style={{ background: '#eff6ff', borderRadius: 8, padding: '8px 10px', marginBottom: 14, fontSize: 11, color: '#1d4ed8' }}>
                     El valor base refleja el crecimiento esperado anual de la zona. Se penaliza por escenario.
                   </div>
@@ -2039,10 +2229,21 @@ export default function Home() {
                   <Slider label="Factor optimista" value={p.scenario2FactorPercent} min={0} max={100} step={5}
                     display={`${p.scenario2FactorPercent}% → ${fPct(p.baseAnnualAppreciationPercent * p.scenario2FactorPercent / 100, 1)}/año`}
                     onChange={v => set('scenario2FactorPercent', v)} />
-                  <Slider label="Años de análisis (post-entrega)" value={p.analysisYears} min={3} max={10} step={1}
+                  <Slider label="Anos de analisis (post-entrega)" value={p.analysisYears} min={3} max={10} step={1}
                     display={`${p.analysisYears} años`} onChange={v => set('analysisYears', v)} />
-                  <Slider label="Gastos de venta" value={p.saleCostPercent} min={0} max={5} step={0.5}
-                    display={`${p.saleCostPercent}%`} onChange={v => set('saleCostPercent', v)} />
+                  {/* Gastos de corretaje — fijo 2% + IVA = 2.38% */}
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, color: '#4a7abf' }}>Gastos de corretaje</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d' }}>2,38% (fijo)</span>
+                    </div>
+                    <input
+                      type="range" min={0} max={5} step={0.01} value={2.38}
+                      readOnly
+                      style={{ width: '100%', opacity: 0.5, cursor: 'not-allowed' }}
+                    />
+                    <p style={{ fontSize: 10, color: '#6b7280', marginTop: 3 }}>2% corretaje + IVA (19%) = 2,38% — aplicado al precio de venta</p>
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
                     <div>
                       <p style={{ fontSize: 11, color: '#4a7abf', marginBottom: 4 }}>Mes escritura</p>
@@ -2114,15 +2315,64 @@ export default function Home() {
             </div>
           </aside>
 
-          {/* ── ANÁLISIS (gráficos + flujo) ──────────────────────────────── */}
+          {/* ── ANÁLISIS (flujo primero, luego gráficos) ──────────────────── */}
           <div style={{ display: (isStaticView || mainView === 'analysis') ? 'flex' : 'none', flexDirection: 'column', gap: 18 }}>
+
+            {/* TABLA PRINCIPAL — flujo primero */}
+            <div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 8 }}>
+                  <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0f2957', margin: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    Flujo Detallado — Todos los Meses
+                    <span style={{ fontSize: 11, fontWeight: 400, color: '#6b93c4' }}>
+                      {R.totalTableMonths + 1} columnas
+                    </span>
+                    <a
+                      href={`/flujo?s=${btoa(JSON.stringify(p))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                        background: '#eff6ff', color: '#1d4ed8',
+                        border: '1px solid #bfdbfe', textDecoration: 'none',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Ver flujo en detalle
+                    </a>
+                  </h2>
+                </div>
+                <div style={{ display: 'flex', gap: 14, fontSize: 10, flexWrap: 'wrap' }}>
+                  {[
+                    { bg: '#7c3aed', label: p.deliveryType === 'future' ? 'Promesa' : 'Escritura' },
+                    ...(p.deliveryType === 'future' ? [{ bg: '#d97706', label: 'Construccion (pre-entrega)' }] : []),
+                    { bg: '#16a34a', label: 'Periodo de gracia' },
+                    ...(p.guaranteedRentEnabled ? [{ bg: '#15803d', label: `Arriendo garantizado (${p.guaranteedRentMonths/12}a)` }] : []),
+                    { bg: '#1d4ed8', label: 'Periodo activo (renta + dividendo)' },
+                  ].map(({ bg, label }) => (
+                    <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#334d6e' }}>
+                      <span style={{ width: 12, height: 12, background: bg, borderRadius: 3, display: 'inline-block' }}></span>
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <FlowTable data={R.monthlyData} p={p} R={R} />
+            </div>
+
+            {/* Resumen al final del flujo: tabla escenarios + resumen venta */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <CompactScenarios R={R} p={p} />
+              <SalesSummaryBox R={R} p={p} />
+            </div>
 
             {/* Flujo mensual chart */}
             <div style={CARD}>
               <div style={{ padding: '14px 18px 8px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                 <div>
                   <h2 style={{ fontSize: 13, fontWeight: 700, color: '#0f2957', marginBottom: 2 }}>Flujo de Caja Mensual</h2>
-                  <p style={{ fontSize: 10, color: '#6b93c4' }}>Verde = superávit · Rojo = déficit · Incluye período pre-entrega si hay cuotas pie</p>
+                  <p style={{ fontSize: 10, color: '#6b93c4' }}>Verde = superavit · Rojo = deficit · Incluye periodo pre-entrega si hay cuotas pie</p>
                 </div>
               </div>
               <div style={{ padding: '0 12px 12px' }}>
@@ -2148,7 +2398,7 @@ export default function Home() {
               <div style={CARD}>
                 <div style={{ padding: '12px 16px 6px' }}>
                   <h3 style={{ fontSize: 12, fontWeight: 700, color: '#0f2957', marginBottom: 1 }}>Flujo Acumulado</h3>
-                  <p style={{ fontSize: 10, color: '#6b93c4' }}>Total dinero puesto/recibido (todo el período)</p>
+                  <p style={{ fontSize: 10, color: '#6b93c4' }}>Total dinero puesto/recibido (todo el periodo)</p>
                 </div>
                 <div style={{ padding: '0 10px 12px' }}>
                   <ResponsiveContainer width="100%" height={170}>
@@ -2172,7 +2422,7 @@ export default function Home() {
 
               <div style={CARD}>
                 <div style={{ padding: '12px 16px 6px' }}>
-                  <h3 style={{ fontSize: 12, fontWeight: 700, color: '#0f2957', marginBottom: 1 }}>Evolución Patrimonio</h3>
+                  <h3 style={{ fontSize: 12, fontWeight: 700, color: '#0f2957', marginBottom: 1 }}>Evolucion Patrimonio</h3>
                   <p style={{ fontSize: 10, color: '#6b93c4' }}>Propiedad vs deuda (M CLP)</p>
                 </div>
                 <div style={{ padding: '0 10px 12px' }}>
@@ -2208,49 +2458,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* TABLA PRINCIPAL */}
-            <div>
-              <div style={{ marginBottom: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 8 }}>
-                  <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0f2957', margin: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    Flujo Detallado — Todos los Meses
-                    <span style={{ fontSize: 11, fontWeight: 400, color: '#6b93c4' }}>
-                      {R.totalTableMonths + 1} columnas
-                    </span>
-                    <a
-                      href={`/flujo?s=${btoa(JSON.stringify(p))}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                        background: '#eff6ff', color: '#1d4ed8',
-                        border: '1px solid #bfdbfe', textDecoration: 'none',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      ↗ Ver flujo en detalle
-                    </a>
-                  </h2>
-                </div>
-                <div style={{ display: 'flex', gap: 14, fontSize: 10, flexWrap: 'wrap' }}>
-                  {[
-                    { bg: '#7c3aed', label: p.deliveryType === 'future' ? 'Promesa' : 'Escritura' },
-                    ...(p.deliveryType === 'future' ? [{ bg: '#d97706', label: 'Construcción (pre-entrega)' }] : []),
-                    { bg: '#16a34a', label: 'Período de gracia' },
-                    ...(p.guaranteedRentEnabled ? [{ bg: '#15803d', label: `Arriendo garantizado (${p.guaranteedRentMonths/12}a)` }] : []),
-                    { bg: '#1d4ed8', label: 'Período activo (renta + dividendo)' },
-                  ].map(({ bg, label }) => (
-                    <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#334d6e' }}>
-                      <span style={{ width: 12, height: 12, background: bg, borderRadius: 3, display: 'inline-block' }}></span>
-                      {label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <FlowTable data={R.monthlyData} p={p} R={R} />
-            </div>
-
             <p style={{ textAlign: 'center', fontSize: 10, color: '#bfdbfe', padding: '10px 0' }}>
               Proppi Simulador · Valores estimativos, no garantizan retorno · UF ${p.ufValueCLP.toLocaleString('es-CL')} · {p.commune} {p.startYear}
             </p>
@@ -2259,6 +2466,13 @@ export default function Home() {
       </main>
       {showSendModal && R && <SendModal p={p} R={R} getShareLink={getShareLink} onClose={() => setShowSendModal(false)} defaultAsesor={selectedAsesor} onAsesorChange={setSelectedAsesor} />}
       {showMap && <MapaInteractivoDynamic onClose={() => setShowMap(false)} />}
+      {showPlusvaliasTable && (
+        <PlusvaliasModal
+          onClose={() => setShowPlusvaliasTable(false)}
+          appreciations={communeAppreciations}
+          onChange={handleCommuneAppreciationChange}
+        />
+      )}
     </div>
   );
 }
