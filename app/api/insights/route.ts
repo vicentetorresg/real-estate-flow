@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   const text = [
     `El banco financia el **${p.financingPercent}%** (≈ **${fCLP(bankLoanCLP)}**), por lo que tu exposición total es **${fCLP(totalCapital)}** en ${years} años. ` +
     `El dividendo mensual es **${fCLP(r.monthlyPaymentCLP as number)}**; el arriendo neto aporta **${fCLP(r.netMonthlyRentCLP as number)}**, ` +
-    `dejando una diferencia de **${fCLP(diff)}/mes** que no es un gasto: es amortización directa de deuda. ` +
+    `dejando una diferencia de **${fCLP(diff)}/mes** que no es plata perdida: es amortización directa de deuda. ` +
     `Cada cuota reduce el saldo hipotecario y construye patrimonio, con independencia de la plusvalía de ${commune}.`,
 
     `Trabajamos con escenarios conservadores — **${f1}%** y **${f2}%** del potencial de plusvalía de la zona — y en ${years} años los números son: ` +
