@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
   function buildCommuneStudyHtml(info: CommuneInfo): string {
     const lines = info.study.split('\n').map((line: string) => {
-      if (line.startsWith('## ')) return `<p style="font-size:13px;font-weight:700;color:#0f2957;margin:14px 0 4px;border-left:3px solid #1d4ed8;padding-left:10px;">${line.slice(3)}</p>`;
+      if (line.startsWith('## ')) return `<p style="font-size:13px;font-weight:700;color:#0f2957;margin:14px 0 4px;border-left:3px solid #1d4ed8;padding-left:10px;text-align:left;">${line.slice(3)}</p>`;
       if (!line.trim()) return '';
       const html = line.replace(/\*\*(.*?)\*\*/g, '<strong style="color:#0f2957;">$1</strong>');
       return `<p style="font-size:13px;color:#334d6e;line-height:1.75;margin:0 0 6px;text-align:justify;">${html}</p>`;
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
     </div>
 
     <!-- Body -->
-    <div style="padding:36px;">
+    <div style="padding:36px;text-align:justify;">
 
       <p style="font-size:17px;font-weight:700;color:#0f2957;margin:0 0 6px;">
         Hola, ${displayName} 👋
