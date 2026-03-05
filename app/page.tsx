@@ -1752,10 +1752,12 @@ export default function Home() {
                 </p>
               )}
             </div>
-            <a href={`${typeof window !== 'undefined' ? window.location.href.replace('mode=static','mode=dynamic') : ''}`}
-              style={{ padding: '10px 20px', borderRadius: 10, background: '#ffffff20', border: '1px solid #ffffff40', color: '#fff', fontSize: 12, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-              🎮 Explorar interactivamente →
-            </a>
+            {!isStaticView && (
+              <a href={`${typeof window !== 'undefined' ? window.location.href.replace('mode=static','mode=dynamic') : ''}`}
+                style={{ padding: '10px 20px', borderRadius: 10, background: '#ffffff20', border: '1px solid #ffffff40', color: '#fff', fontSize: 12, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                🎮 Explorar interactivamente →
+              </a>
+            )}
           </div>
         )}
 
