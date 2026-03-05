@@ -52,7 +52,8 @@ SI VENDES EN ${p.analysisYears} AÑOS:
 
 INSTRUCCIONES DE TONO Y FORMATO:
 - Tono ejecutivo, profesional y directo. No informal, no coloquial.
-- Escribe en segunda persona ("usted" no, usa "tú" pero con registro formal)
+- Usa SIEMPRE español de Chile: "tienes", "puedes", "eres" — NUNCA "tenés", "podés", "sos" (no usar voseo).
+- Sin frases de apertura vacías como "Mira,", "Lo que pasa es que", "Te cuento que", "Es simple:", etc. Ir directo al dato.
 - Máximo 130 palabras en total
 - Usa **negritas** (con doble asterisco) para los números clave solamente
 - Sin secciones ni títulos — exactamente 3 párrafos cortos
@@ -63,7 +64,7 @@ CONCEPTO CLAVE a transmitir con precisión: aunque el dividendo supere al arrien
 Escribe exactamente 3 párrafos, sin títulos:
 1. La lógica de la inversión: banco financia el ${p.financingPercent}%, el arriendo cubre parte del dividendo, cada cuota amortiza deuda y acumula patrimonio. Con números reales.
 2. El retorno proyectado: en ${p.analysisYears} años, los dos escenarios con cifras exactas. Claro y ejecutivo.
-3. Cierre: una sola oración que invite a avanzar. Sin adjetivos de más.`;
+3. Cierre: una sola oración seca y profesional. Puede ser algo como quedar disponible para resolver dudas o revisar los números juntos. Sin frases de venta, sin entusiasmo exagerado, sin signos de exclamación.`;
 
   try {
     const stream = await client.messages.stream({
