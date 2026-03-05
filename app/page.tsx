@@ -468,7 +468,7 @@ const DEFAULTS: SimulationParams = {
   baseAnnualAppreciationPercent: 5,
   scenario1FactorPercent: 30,
   scenario2FactorPercent: 70,
-  saleCostPercent: 2.5, startMonth: 2, startYear: 2026,
+  saleCostPercent: 2, startMonth: 2, startYear: 2026,
   projectName: '',
   clientName: '', clientRut: '', clientEmail: '',
   parkingCount: 0, parkingValueUF: 300, parkingBonoPie: true,
