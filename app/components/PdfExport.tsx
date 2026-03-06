@@ -1,12 +1,10 @@
 'use client';
-import React, { useRef, useState } from 'react';
-import { createRoot } from 'react-dom/client';
-import { flushSync } from 'react-dom';
+import React, { useState } from 'react';
 import RutInput from './RutInput';
 
 const ASESORES = ['Diego Sánchez', 'Cristóbal Sepúlveda', 'Matías Bertelsen', 'Vicente Torres'];
 
-// ─── Minimal types (mirror page.tsx) ─────────────────────────
+// ─── Types ────────────────────────────────────────────────────
 interface SimulationParams {
   projectName: string; commune: string; deliveryType: string; constructionMonths: number;
   propertyValueUF: number; ufValueCLP: number; financingPercent: number;
@@ -41,7 +39,7 @@ const fCLPFull = (v: number) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v);
 const fUF = (v: number, d = 0) =>
   `UF ${v.toLocaleString('es-CL', { minimumFractionDigits: d, maximumFractionDigits: d })}`;
-const fPct = (v: number, d = 1) => (isFinite(v) ? `${v.toFixed(d).replace('.', ',')}%` : '∞');
+const fPct = (v: number, d = 1) => (isFinite(v) ? `${v.toFixed(d).replace('.', ',')}%` : '\u221E');
 
 const ML = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const MS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -50,337 +48,345 @@ function addMonths(month: number, year: number, n: number) {
   return { month: t % 12, year: Math.floor(t / 12) };
 }
 
-// ─── PDF Template (hidden, captured by html2canvas) ──────────
-function PdfTemplate({ p, R, clientName, clientRut, asesor }: {
-  p: SimulationParams; R: SimulationResult;
-  clientName: string; clientRut: string; asesor: string;
-}) {
-  const escrituraMes = addMonths(p.startMonth, p.startYear, p.deliveryType === 'future' ? p.constructionMonths : 0);
-  const saleMes = addMonths(escrituraMes.month, escrituraMes.year, p.analysisYears * 12);
-  const today = new Date();
-  const todayLabel = `${today.getDate()} ${MS[today.getMonth()]} ${today.getFullYear()}`;
-  const netMonthly = R.netMonthlyRentCLP - R.monthlyPaymentCLP;
-  // Inversión inicial = pie contado + gastos operacionales + fondo de reserva
-  const pieUpfrontCLP = R.clientPieUpfrontUF * p.ufValueCLP;
-  const inversionInicial = pieUpfrontCLP + p.operationalCostsCLP + (p.reserveFundUF * p.ufValueCLP);
-  const soloGastos = R.clientPieUF === 0 && p.operationalCostsCLP > 0;
-
-  const ROW: React.CSSProperties = { display: 'flex', gap: 0 };
-  const SEC_TITLE: React.CSSProperties = {
-    fontSize: 9, fontWeight: 800, color: '#93b4d4', letterSpacing: '0.12em',
-    textTransform: 'uppercase', marginBottom: 10,
-  };
-
-  return (
-    <div style={{
-      width: 900, fontFamily: 'system-ui, -apple-system, sans-serif',
-      background: '#fff', color: '#0f2957', display: 'block', margin: 0, padding: 0,
-    }}>
-
-      {/* ── HEADER ───────────────────────────────── */}
-      <div style={{
-        background: 'linear-gradient(135deg, #0f2957 0%, #1d4ed8 50%, #0284c7 100%)',
-        padding: '28px 36px 24px', color: '#fff',
-      }}>
-        <div style={{ ...ROW, justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
-          {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 52, height: 52, background: '#fff', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo2.png" alt="Proppi" style={{ width: 44, height: 44, objectFit: 'contain' }} /></div>
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1 }}>Proppi</div>
-              <div style={{ fontSize: 10, color: '#93c5fd', marginTop: 2 }}>Inversión Inmobiliaria</div>
-            </div>
-          </div>
-          {/* Badge */}
-          <div style={{
-            background: '#ffffff20', border: '1px solid #ffffff40',
-            borderRadius: 20, padding: '4px 16px 8px', fontSize: 11, color: '#e0f2fe', fontWeight: 600,
-            lineHeight: 1,
-          }}>
-            Simulación de Inversión · {todayLabel}
-          </div>
-        </div>
-
-        {/* Project name */}
-        <div style={{ borderTop: '1px solid #ffffff25', paddingTop: 18 }}>
-          <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: '-0.02em', marginBottom: 6 }}>
-            {p.projectName || 'Proyecto Inmobiliario'}
-          </div>
-          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#bfdbfe', flexWrap: 'wrap' }}>
-            <span>📍 {p.commune}</span>
-            <span>·</span>
-            <span>{p.deliveryType === 'immediate' ? '✅ Entrega Inmediata' : `🏗 Entrega Futura · ${p.constructionMonths} meses obra`}</span>
-            <span>·</span>
-            <span>📅 Análisis {p.analysisYears} años · Venta {ML[saleMes.month]} {saleMes.year}</span>
-            {p.guaranteedRentEnabled && <><span>·</span><span>🏆 Arriendo Garantizado {p.guaranteedRentMonths / 12}a</span></>}
-          </div>
-        </div>
-      </div>
-
-      {/* ── CLIENT ROW ───────────────────────────── */}
-      <div style={{
-        background: '#eff6ff', borderBottom: '2px solid #dbeafe',
-        padding: '14px 36px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontSize: 12 }}>
-          <div>
-            <div style={{ fontSize: 9, color: '#93b4d4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>Preparado para</div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: '#0f2957' }}>{clientName || '—'}</div>
-            {clientRut && <div style={{ fontSize: 11, color: '#6b93c4', marginTop: 1 }}>RUT {clientRut}</div>}
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          {asesor && (
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 9, color: '#93b4d4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>Asesor</div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#1d4ed8' }}>{asesor}</div>
-              <div style={{ fontSize: 9, color: '#6b93c4', marginTop: 1 }}>Proppi</div>
-            </div>
-          )}
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 9, color: '#93b4d4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>Fecha</div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#0f2957' }}>{todayLabel}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 3 KPI HEROES ─────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
-        {[
-          {
-            icon: '🏢', label: 'Valor Propiedad', main: fUF(R.totalValueUF),
-            sub: fCLPFull(R.totalValueUF * p.ufValueCLP),
-            note: `UF ${p.ufValueCLP.toLocaleString('es-CL')} hoy`, bg: '#fff', border: '#dbeafe',
-          },
-          {
-            icon: '💰', label: soloGastos ? 'Lo que necesitas al escriturar' : 'Tu Inversión Inicial',
-            main: fCLPFull(inversionInicial),
-            sub: soloGastos ? `Gastos operacionales del crédito` : fUF(R.clientPieUF, 1),
-            note: soloGastos ? `Pie cubierto por bono · Crédito ${fPct(p.financingPercent, 0)}` : `Pie ${fPct(R.totalPiePct)} · Crédito ${fPct(p.financingPercent, 0)}`,
-            bg: '#eff6ff', border: '#bfdbfe',
-          },
-          {
-            icon: '📊', label: 'Flujo Mensual Estimado', main: fCLPFull(netMonthly),
-            sub: `Arriendo neto ${fCLPFull(R.netMonthlyRentCLP)}`,
-            note: `Dividendo ${fCLPFull(R.monthlyPaymentCLP)}`, bg: '#fff', border: '#dbeafe',
-          },
-        ].map(({ icon, label, main, sub, note, bg, border }) => (
-          <div key={label} style={{
-            background: bg, borderRight: `1px solid ${border}`, borderBottom: `1px solid ${border}`,
-            padding: '20px 28px',
-          }}>
-            <div style={{ fontSize: 11, color: '#6b93c4', marginBottom: 6 }}>{icon} {label}</div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: '#0f2957', marginBottom: 4, letterSpacing: '-0.02em' }}>{main}</div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#1d4ed8', marginBottom: 2 }}>{sub}</div>
-            <div style={{ fontSize: 10, color: '#93b4d4' }}>{note}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── SCENARIOS ────────────────────────────── */}
-      <div style={{ padding: '24px 36px', background: '#f8faff' }}>
-        <div style={{ ...SEC_TITLE }}>📈 Escenarios de Retorno · {p.analysisYears} años</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          {/* Conservative */}
-          {([
-            {
-              label: 'Escenario Conservador', s: R.scenario1,
-              ann: R.effectiveAnnual1, total: R.totalApprec1,
-              color: '#1d4ed8', bg: '#fff', border: '#bfdbfe', grad: 'linear-gradient(135deg,#1e3a8a,#1d4ed8)',
-              icon: '🛡',
-            },
-            {
-              label: 'Escenario Optimista', s: R.scenario2,
-              ann: R.effectiveAnnual2, total: R.totalApprec2,
-              color: '#15803d', bg: '#f0fdf4', border: '#86efac', grad: 'linear-gradient(135deg,#14532d,#15803d)',
-              icon: '🚀',
-            },
-          ] as const).map(({ label, s, ann, total, color, bg, border, grad, icon }) => (
-            <div key={label} style={{ background: bg, border: `1.5px solid ${border}`, borderRadius: 14, overflow: 'hidden' }}>
-              {/* Card header */}
-              <div style={{ background: grad, padding: '14px 20px', color: '#fff' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.8, marginBottom: 4 }}>{icon} {label}</div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>
-                  {fPct(ann)}/año · +{fPct(total, 0)} en {p.analysisYears} años
-                </div>
-              </div>
-              {/* Main numbers */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
-                <div style={{ padding: '16px 20px', borderBottom: `1px solid ${border}`, borderRight: `1px solid ${border}` }}>
-                  <div style={{ fontSize: 10, color: '#6b93c4', marginBottom: 4 }}>💰 Invertiste</div>
-                  <div style={{ fontSize: 17, fontWeight: 900, color: '#dc2626', letterSpacing: '-0.02em' }}>{fCLPFull(R.totalNegativeCashFlow)}</div>
-                  <div style={{ fontSize: 9, color: '#93b4d4', marginTop: 2 }}>Flujo negativo total</div>
-                </div>
-                <div style={{ padding: '16px 20px', borderBottom: `1px solid ${border}` }}>
-                  <div style={{ fontSize: 10, color: '#6b93c4', marginBottom: 4 }}>✨ Podrías ganar</div>
-                  <div style={{ fontSize: 17, fontWeight: 900, color, letterSpacing: '-0.02em' }}>{fCLPFull(s.totalReturn)}</div>
-                  <div style={{ fontSize: 9, color: '#93b4d4', marginTop: 2 }}>Retorno total</div>
-                </div>
-              </div>
-              {/* Metrics grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', padding: '12px 20px', gap: 12 }}>
-                {[
-                  ['ROI total', fPct(s.roiPercent, 0)],
-                  ['ROI anual', fPct(s.annualizedRoiPercent, 1)],
-                  ['Precio venta', fUF(s.salePriceUF)],
-                  ['Patr. neto', fCLPFull(s.netEquityCLP)],
-                  ['Plusvalía', fPct(total, 0)],
-                  ['Venta est.', `${MS[saleMes.month]} ${saleMes.year}`],
-                ].map(([lbl, val]) => (
-                  <div key={lbl}>
-                    <div style={{ fontSize: 8, color: '#93b4d4', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{lbl}</div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color, fontFamily: 'monospace' }}>{val}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── FINANCIAL DETAILS ─────────────────────── */}
-      <div style={{ padding: '0 36px 24px', background: '#f8faff' }}>
-        <div style={{ background: '#fff', border: '1px solid #dbeafe', borderRadius: 14, padding: '20px 24px' }}>
-          <div style={{ ...SEC_TITLE }}>🏦 Detalles Financieros</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-            {[
-              ['Financiamiento', `${fPct(p.financingPercent, 0)} → ${fUF(R.loanUF)}`],
-              ['Tasa hipotecaria', `${fPct(p.annualRatePercent)} anual`],
-              ['Plazo crédito', `${p.loanTermYears} años`],
-              ['Dividendo mensual', fCLPFull(R.monthlyPaymentCLP)],
-              ['Arriendo neto/mes', fCLPFull(R.netMonthlyRentCLP)],
-              ['Cap Rate', fPct(R.capRatePercent)],
-              ['Período de gracia', `${p.gracePeriodMonths} meses`],
-              ['Bono pie', `${fPct(p.bonoPiePercent, 0)} → ${fUF(R.bonoPieUF, 1)}`],
-            ].map(([lbl, val]) => (
-              <div key={lbl}>
-                <div style={{ fontSize: 9, color: '#6b93c4', marginBottom: 3 }}>{lbl}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#0f2957', fontFamily: 'monospace' }}>{val}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Parking & storage */}
-          {(p.parkingCount > 0 || p.storageCount > 0) && (
-            <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #dbeafe', display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-              {p.parkingCount > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#eff6ff', borderRadius: 8, padding: '6px 14px' }}>
-                  <span style={{ fontSize: 14 }}>🚗</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: '#6b93c4' }}>Estacionamientos</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8' }}>{p.parkingCount} × {fUF(p.parkingValueUF)} {p.parkingBonoPie ? '· Bono pie incluido' : ''}</div>
-                  </div>
-                </div>
-              )}
-              {p.storageCount > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#eff6ff', borderRadius: 8, padding: '6px 14px' }}>
-                  <span style={{ fontSize: 14 }}>📦</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: '#6b93c4' }}>Bodega</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8' }}>{fUF(p.storageValueUF)} {p.storageBonoPie ? '· Bono pie incluido' : ''}</div>
-                  </div>
-                </div>
-              )}
-              {p.reserveFundUF > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fefce8', borderRadius: 8, padding: '6px 14px' }}>
-                  <span style={{ fontSize: 14 }}>🏛</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: '#92400e' }}>Fondo de reserva</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>{fUF(p.reserveFundUF, 1)} al escriturar</div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── GUARANTEED RENT BANNER ───────────────── */}
-      {p.guaranteedRentEnabled && (
-        <div style={{ margin: '0 36px 24px', background: 'linear-gradient(135deg,#14532d,#15803d)', borderRadius: 14, padding: '16px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 4 }}>🏆 Arriendo Garantizado Incluido</div>
-            <div style={{ fontSize: 11, color: '#bbf7d0' }}>
-              {p.guaranteedRentMonths} meses · {fCLPFull(p.guaranteedRentCLP)}/mes · Sin riesgo de vacancia
-            </div>
-          </div>
-          <div style={{ background: '#ffffff20', borderRadius: 10, padding: '8px 16px', textAlign: 'center' }}>
-            <div style={{ fontSize: 20, fontWeight: 900 }}>{p.guaranteedRentMonths / 12}a</div>
-            <div style={{ fontSize: 9, color: '#bbf7d0' }}>garantizado</div>
-          </div>
-        </div>
-      )}
-
-      {/* ── SUMMARY BAR ─────────────────────────── */}
-      <div style={{ margin: '0 36px 24px', background: 'linear-gradient(135deg,#1e3a8a,#1d4ed8)', borderRadius: 14, padding: '18px 28px', color: '#fff' }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>
-          Resumen Ejecutivo
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-          {[
-            ['Valor total propiedad', fCLPFull(R.totalValueUF * p.ufValueCLP), '#fff'],
-            ['Flujo total invertido', fCLPFull(R.totalNegativeCashFlow), '#fca5a5'],
-            ['Retorno cons.', fCLPFull(R.scenario1.totalReturn), '#93c5fd'],
-            ['Retorno opt.', fCLPFull(R.scenario2.totalReturn), '#86efac'],
-          ].map(([lbl, val, col]) => (
-            <div key={lbl}>
-              <div style={{ fontSize: 9, color: '#93c5fd', marginBottom: 4 }}>{lbl}</div>
-              <div style={{ fontSize: 15, fontWeight: 900, color: col as string, fontFamily: 'monospace' }}>{val}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── FOOTER ───────────────────────────────── */}
-      <div style={{ background: '#0f2957', padding: '16px 36px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 24, height: 24, background: '#fff', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo2.png" alt="Proppi" style={{ width: 16, height: 16, objectFit: 'contain' }} /></div>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>Proppi</span>
-          <span style={{ fontSize: 10, color: '#4a7abf' }}>· proppi.cl</span>
-        </div>
-        <div style={{ fontSize: 9, color: '#4a7abf', maxWidth: 500, textAlign: 'right' }}>
-          Valores estimativos basados en proyecciones. No garantizan retorno. UF {p.ufValueCLP.toLocaleString('es-CL')} al {todayLabel}. Documento generado automáticamente por Proppi Simulador.
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Standalone PDF generator (for email attachment) ─────────
-export async function generatePdfBase64(
+// ─── SVG Generator ────────────────────────────────────────────
+function generateSVGString(
   p: SimulationParams,
   R: SimulationResult,
   clientName: string,
   clientRut: string,
   asesor: string,
-): Promise<string | null> {
-  if (typeof window === 'undefined') return null;
-  const html2canvasMod = await import('html2canvas');
-  const html2canvas = html2canvasMod.default;
-  const { jsPDF } = await import('jspdf');
+  logoDataUrl: string,
+): string {
+  const W = 900;
+  const escrituraMes = addMonths(p.startMonth, p.startYear, p.deliveryType === 'future' ? p.constructionMonths : 0);
+  const saleMes = addMonths(escrituraMes.month, escrituraMes.year, p.analysisYears * 12);
+  const today = new Date();
+  const todayLabel = `${today.getDate()} ${MS[today.getMonth()]} ${today.getFullYear()}`;
+  const netMonthly = R.netMonthlyRentCLP - R.monthlyPaymentCLP;
+  const pieUpfrontCLP = R.clientPieUpfrontUF * p.ufValueCLP;
+  const inversionInicial = pieUpfrontCLP + p.operationalCostsCLP + (p.reserveFundUF * p.ufValueCLP);
+  const soloGastos = R.clientPieUF === 0 && p.operationalCostsCLP > 0;
+  const hasParkingStorage = p.parkingCount > 0 || p.storageCount > 0 || p.reserveFundUF > 0;
 
-  const container = document.createElement('div');
-  container.style.cssText = 'position:fixed;left:-9999px;top:0;display:inline-block;z-index:-1;';
-  document.body.appendChild(container);
-  const root = createRoot(container);
-  try {
-    flushSync(() => {
-      root.render(React.createElement(PdfTemplate, { p, R, clientName, clientRut, asesor }));
-    });
-    const el = container.firstElementChild as HTMLElement;
-    if (!el) return null;
-    const canvas = await html2canvas(el, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [canvas.width / 2, canvas.height / 2] });
-    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
-    return pdf.output('datauristring').split(',')[1];
-  } finally {
-    root.unmount();
-    document.body.removeChild(container);
+  // Section heights
+  const HEADER_H = 172;
+  const CLIENT_H = 72;
+  const KPI_H = 100;
+  const SCENARIO_H = 300;
+  const FIN_H = hasParkingStorage ? 182 : 136;
+  const GUARANTEED_H = p.guaranteedRentEnabled ? 82 : 0;
+  const SUMMARY_H = 106;
+  const FOOTER_H = 58;
+  const TOTAL_H = HEADER_H + CLIENT_H + KPI_H + SCENARIO_H + FIN_H + GUARANTEED_H + SUMMARY_H + FOOTER_H;
+
+  // Helpers
+  const esc = (s: string) => s
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  type TxtOpts = { size?: number; weight?: string | number; fill?: string; anchor?: string; mono?: boolean; italic?: boolean };
+  const txt = (x: number, y: number, content: string, opts: TxtOpts = {}) => {
+    const { size = 12, weight = 'normal', fill = '#0f2957', anchor = 'start', mono = false, italic = false } = opts;
+    const family = mono ? 'ui-monospace,SFMono-Regular,Menlo,monospace' : 'system-ui,-apple-system,sans-serif';
+    const style = italic ? ' font-style="italic"' : '';
+    return `<text x="${x}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}" font-family="${family}"${style}>${esc(String(content))}</text>`;
+  };
+  const rct = (x: number, y: number, w: number, h: number, fill: string, rx = 0, stroke = '', sw = 0) =>
+    `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" rx="${rx}"${stroke ? ` stroke="${stroke}" stroke-width="${sw}"` : ''}/>`;
+  const line = (x1: number, y1: number, x2: number, y2: number, stroke: string, sw = 1) =>
+    `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${sw}"/>`;
+
+  const parts: string[] = [];
+
+  // ── DEFS ─────────────────────────────────────────────────────
+  parts.push(`<defs>
+  <linearGradient id="gHdr" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#0f2957"/><stop offset="50%" stop-color="#1d4ed8"/><stop offset="100%" stop-color="#0284c7"/>
+  </linearGradient>
+  <linearGradient id="gCons" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#1e3a8a"/><stop offset="100%" stop-color="#1d4ed8"/>
+  </linearGradient>
+  <linearGradient id="gOpt" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#14532d"/><stop offset="100%" stop-color="#15803d"/>
+  </linearGradient>
+  <linearGradient id="gSum" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#1e3a8a"/><stop offset="100%" stop-color="#1d4ed8"/>
+  </linearGradient>
+  <linearGradient id="gGuar" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#14532d"/><stop offset="100%" stop-color="#15803d"/>
+  </linearGradient>
+  <clipPath id="cHdr"><rect width="${W}" height="${HEADER_H}"/></clipPath>
+  <clipPath id="cCons"><rect x="36" y="${HEADER_H + CLIENT_H + KPI_H + 50}" width="${(W - 88) / 2}" height="54" rx="12"/></clipPath>
+  <clipPath id="cOpt"><rect x="${36 + (W - 88) / 2 + 16}" y="${HEADER_H + CLIENT_H + KPI_H + 50}" width="${(W - 88) / 2}" height="54" rx="12"/></clipPath>
+</defs>`);
+
+  // ── HEADER ───────────────────────────────────────────────────
+  let y = 0;
+  parts.push(rct(0, y, W, HEADER_H, 'url(#gHdr)'));
+
+  // Logo box
+  parts.push(rct(36, y + 28, 52, 52, '#ffffff', 12));
+  if (logoDataUrl) {
+    parts.push(`<image x="40" y="${y + 32}" width="44" height="44" href="${logoDataUrl}" preserveAspectRatio="xMidYMid meet"/>`);
+  } else {
+    parts.push(txt(62, y + 60, 'P', { size: 30, weight: 900, fill: '#1d4ed8', anchor: 'middle' }));
   }
+
+  // Brand
+  parts.push(txt(100, y + 52, 'Proppi', { size: 18, weight: 800, fill: '#ffffff' }));
+  parts.push(txt(100, y + 68, 'Inversion Inmobiliaria', { size: 10, fill: '#93c5fd' }));
+
+  // Badge top-right
+  const badgeW = 250;
+  const badgeX = W - 36 - badgeW;
+  parts.push(rct(badgeX, y + 28, badgeW, 28, '#ffffff20', 14));
+  parts.push(`<rect x="${badgeX}" y="${y + 28}" width="${badgeW}" height="28" rx="14" fill="none" stroke="#ffffff40" stroke-width="1"/>`);
+  parts.push(txt(badgeX + badgeW / 2, y + 47, `Simulacion de Inversion  \u00B7  ${todayLabel}`, { size: 11, weight: 600, fill: '#e0f2fe', anchor: 'middle' }));
+
+  // Separator
+  parts.push(line(36, y + 96, W - 36, y + 96, '#ffffff30'));
+
+  // Project name
+  const projName = p.projectName || 'Proyecto Inmobiliario';
+  parts.push(txt(36, y + 128, projName, { size: 26, weight: 900, fill: '#ffffff' }));
+
+  // Sub info
+  const deliveryTxt = p.deliveryType === 'immediate' ? 'Entrega Inmediata' : `Entrega Futura \u00B7 ${p.constructionMonths}m obra`;
+  const subInfo = [p.commune, deliveryTxt, `Analisis ${p.analysisYears} anos \u00B7 Venta ${ML[saleMes.month]} ${saleMes.year}`];
+  if (p.guaranteedRentEnabled) subInfo.push(`Arriendo Garantizado ${p.guaranteedRentMonths / 12}a`);
+  parts.push(txt(36, y + 155, subInfo.join('   \u00B7   '), { size: 11, fill: '#bfdbfe' }));
+
+  y += HEADER_H;
+
+  // ── CLIENT BAR ───────────────────────────────────────────────
+  parts.push(rct(0, y, W, CLIENT_H, '#eff6ff'));
+  parts.push(line(0, y + CLIENT_H, W, y + CLIENT_H, '#dbeafe', 2));
+
+  parts.push(txt(36, y + 18, 'PREPARADO PARA', { size: 9, weight: 700, fill: '#93b4d4' }));
+  parts.push(txt(36, y + 40, clientName || '\u2014', { size: 14, weight: 800, fill: '#0f2957' }));
+  if (clientRut) {
+    parts.push(txt(36, y + 58, `RUT ${clientRut}`, { size: 11, fill: '#6b93c4' }));
+  }
+
+  if (asesor) {
+    parts.push(txt(W - 160, y + 18, 'ASESOR', { size: 9, weight: 700, fill: '#93b4d4' }));
+    parts.push(txt(W - 160, y + 40, asesor, { size: 13, weight: 800, fill: '#1d4ed8' }));
+    parts.push(txt(W - 160, y + 58, 'Proppi', { size: 9, fill: '#6b93c4' }));
+  }
+  parts.push(txt(W - 36, y + 18, 'FECHA', { size: 9, weight: 700, fill: '#93b4d4', anchor: 'end' }));
+  parts.push(txt(W - 36, y + 40, todayLabel, { size: 12, weight: 600, fill: '#0f2957', anchor: 'end' }));
+
+  y += CLIENT_H;
+
+  // ── KPI HEROES ───────────────────────────────────────────────
+  const kpiItems = [
+    {
+      label: 'Valor Propiedad',
+      main: fUF(R.totalValueUF),
+      sub: fCLPFull(R.totalValueUF * p.ufValueCLP),
+      note: `UF ${p.ufValueCLP.toLocaleString('es-CL')} hoy`,
+      bg: '#ffffff',
+    },
+    {
+      label: soloGastos ? 'Lo que necesitas al escriturar' : 'Tu Inversion Inicial',
+      main: fCLPFull(inversionInicial),
+      sub: soloGastos ? 'Gastos operacionales del credito' : fUF(R.clientPieUF, 1),
+      note: soloGastos
+        ? `Pie cubierto por bono \u00B7 Credito ${fPct(p.financingPercent, 0)}`
+        : `Pie ${fPct(R.totalPiePct)} \u00B7 Credito ${fPct(p.financingPercent, 0)}`,
+      bg: '#eff6ff',
+    },
+    {
+      label: 'Flujo Mensual Estimado',
+      main: fCLPFull(netMonthly),
+      sub: `Arriendo neto ${fCLPFull(R.netMonthlyRentCLP)}`,
+      note: `Dividendo ${fCLPFull(R.monthlyPaymentCLP)}`,
+      bg: '#ffffff',
+    },
+  ];
+
+  const KPI_W = W / 3;
+  kpiItems.forEach(({ label, main, sub, note, bg }, i) => {
+    const kx = i * KPI_W;
+    parts.push(rct(kx, y, KPI_W, KPI_H, bg));
+    if (i < 2) parts.push(line(kx + KPI_W, y, kx + KPI_W, y + KPI_H, '#dbeafe'));
+    parts.push(line(0, y + KPI_H, W, y + KPI_H, '#dbeafe'));
+    parts.push(txt(kx + 28, y + 20, label, { size: 10, fill: '#6b93c4' }));
+    parts.push(txt(kx + 28, y + 52, main, { size: 22, weight: 900, fill: '#0f2957', mono: true }));
+    parts.push(txt(kx + 28, y + 70, sub, { size: 12, weight: 600, fill: '#1d4ed8' }));
+    parts.push(txt(kx + 28, y + 86, note, { size: 10, fill: '#93b4d4' }));
+  });
+
+  y += KPI_H;
+
+  // ── SCENARIOS ────────────────────────────────────────────────
+  parts.push(rct(0, y, W, SCENARIO_H, '#f8faff'));
+  parts.push(txt(36, y + 24, `ESCENARIOS DE RETORNO \u00B7 ${p.analysisYears} ANOS`, { size: 9, weight: 800, fill: '#93b4d4' }));
+
+  const SC_W = (W - 88) / 2; // 388
+  const SC_X0 = 36;
+  const SC_X1 = 36 + SC_W + 16;
+  const scCardY = y + 46;
+  const CARD_H = 228;
+
+  const scenarios = [
+    { label: 'Escenario Conservador', s: R.scenario1, ann: R.effectiveAnnual1, total: R.totalApprec1, color: '#1d4ed8', bg: '#ffffff', border: '#bfdbfe', grad: 'url(#gCons)', solidColor: '#1d4ed8', clipId: 'cCons', idx: 0 },
+    { label: 'Escenario Optimista',   s: R.scenario2, ann: R.effectiveAnnual2, total: R.totalApprec2, color: '#15803d', bg: '#f0fdf4', border: '#86efac', grad: 'url(#gOpt)', solidColor: '#15803d', clipId: 'cOpt', idx: 1 },
+  ];
+
+  scenarios.forEach(({ label, s, ann, total, color, bg, border, grad, solidColor, idx }) => {
+    const sx = idx === 0 ? SC_X0 : SC_X1;
+
+    // Card background
+    parts.push(`<rect x="${sx}" y="${scCardY}" width="${SC_W}" height="${CARD_H}" rx="12" fill="${bg}" stroke="${border}" stroke-width="1.5"/>`);
+
+    // Card header (clipped to rounded top)
+    parts.push(`<clipPath id="scHdr${idx}"><rect x="${sx}" y="${scCardY}" width="${SC_W}" height="56" rx="12"/></clipPath>`);
+    parts.push(`<rect x="${sx}" y="${scCardY}" width="${SC_W}" height="56" fill="${grad}" clip-path="url(#scHdr${idx})"/>`);
+    // Fill bottom strip of header to avoid gap
+    parts.push(`<rect x="${sx}" y="${scCardY + 42}" width="${SC_W}" height="14" fill="${solidColor}"/>`);
+
+    parts.push(txt(sx + 20, scCardY + 22, label, { size: 11, weight: 700, fill: '#ffffff' }));
+    parts.push(txt(sx + 20, scCardY + 44, `${fPct(ann)}/ano  \u00B7  +${fPct(total, 0)} en ${p.analysisYears} anos`, { size: 12, weight: 600, fill: '#ffffff' }));
+
+    // Numbers row dividers
+    const halfW = SC_W / 2;
+    parts.push(line(sx + halfW, scCardY + 56, sx + halfW, scCardY + 128, border));
+    parts.push(line(sx, scCardY + 128, sx + SC_W, scCardY + 128, border));
+
+    // Left: Invertiste
+    parts.push(txt(sx + 20, scCardY + 74, 'Invertiste', { size: 10, fill: '#6b93c4' }));
+    parts.push(txt(sx + 20, scCardY + 100, fCLPFull(R.totalNegativeCashFlow), { size: 15, weight: 900, fill: '#dc2626', mono: true }));
+    parts.push(txt(sx + 20, scCardY + 118, 'Flujo negativo total', { size: 9, fill: '#93b4d4' }));
+
+    // Right: Podrías ganar
+    parts.push(txt(sx + halfW + 20, scCardY + 74, 'Podrias ganar', { size: 10, fill: '#6b93c4' }));
+    parts.push(txt(sx + halfW + 20, scCardY + 100, fCLPFull(s.totalReturn), { size: 15, weight: 900, fill: color, mono: true }));
+    parts.push(txt(sx + halfW + 20, scCardY + 118, 'Retorno total', { size: 9, fill: '#93b4d4' }));
+
+    // Metrics grid (3 cols × 2 rows)
+    const metrics = [
+      ['ROI total', fPct(s.roiPercent, 0)],
+      ['ROI anual', fPct(s.annualizedRoiPercent, 1)],
+      ['Precio venta', fUF(s.salePriceUF)],
+      ['Patr. neto', fCLPFull(s.netEquityCLP)],
+      ['Plusvalia', fPct(total, 0)],
+      ['Venta est.', `${MS[saleMes.month]} ${saleMes.year}`],
+    ];
+    const colW = SC_W / 3;
+    metrics.forEach(([lbl, val], mi) => {
+      const col = mi % 3;
+      const row = Math.floor(mi / 3);
+      const mx = sx + col * colW + 20;
+      const my = scCardY + 144 + row * 42;
+      parts.push(txt(mx, my, lbl.toUpperCase(), { size: 8, fill: '#93b4d4' }));
+      parts.push(txt(mx, my + 18, val, { size: 11, weight: 700, fill: color, mono: true }));
+    });
+  });
+
+  y += SCENARIO_H;
+
+  // ── FINANCIAL DETAILS ─────────────────────────────────────────
+  parts.push(rct(0, y, W, FIN_H, '#f8faff'));
+  const FBX = 36;
+  const FBW = W - 72;
+  const FBH = FIN_H - 12;
+  parts.push(`<rect x="${FBX}" y="${y}" width="${FBW}" height="${FBH}" rx="12" fill="#ffffff" stroke="#dbeafe" stroke-width="1"/>`);
+  parts.push(txt(FBX + 24, y + 24, 'DETALLES FINANCIEROS', { size: 9, weight: 800, fill: '#93b4d4' }));
+
+  const finItems: [string, string][] = [
+    ['Financiamiento', `${fPct(p.financingPercent, 0)}  \u2192  ${fUF(R.loanUF)}`],
+    ['Tasa hipotecaria', `${fPct(p.annualRatePercent)} anual`],
+    ['Plazo credito', `${p.loanTermYears} anos`],
+    ['Dividendo mensual', fCLPFull(R.monthlyPaymentCLP)],
+    ['Arriendo neto/mes', fCLPFull(R.netMonthlyRentCLP)],
+    ['Cap Rate', fPct(R.capRatePercent)],
+    ['Periodo de gracia', `${p.gracePeriodMonths} meses`],
+    ['Bono pie', `${fPct(p.bonoPiePercent, 0)}  \u2192  ${fUF(R.bonoPieUF, 1)}`],
+  ];
+  const FIN_COL_W = FBW / 4;
+  finItems.forEach(([lbl, val], fi) => {
+    const col = fi % 4;
+    const row = Math.floor(fi / 4);
+    const fx = FBX + 24 + col * FIN_COL_W;
+    const fy = y + 46 + row * 40;
+    parts.push(txt(fx, fy, lbl, { size: 9, fill: '#6b93c4' }));
+    parts.push(txt(fx, fy + 18, val, { size: 12, weight: 700, fill: '#0f2957', mono: true }));
+  });
+
+  if (hasParkingStorage) {
+    const psY = y + 46 + 2 * 40 + 10;
+    parts.push(line(FBX + 24, psY, FBX + FBW - 24, psY, '#dbeafe'));
+    let psX = FBX + 24;
+    if (p.parkingCount > 0) {
+      parts.push(rct(psX, psY + 10, 200, 40, '#eff6ff', 8));
+      parts.push(txt(psX + 14, psY + 26, 'Estacionamientos', { size: 9, fill: '#6b93c4' }));
+      parts.push(txt(psX + 14, psY + 42, `${p.parkingCount} x ${fUF(p.parkingValueUF)}${p.parkingBonoPie ? '  \u00B7  Bono pie incl.' : ''}`, { size: 11, weight: 700, fill: '#1d4ed8' }));
+      psX += 216;
+    }
+    if (p.storageCount > 0) {
+      parts.push(rct(psX, psY + 10, 200, 40, '#eff6ff', 8));
+      parts.push(txt(psX + 14, psY + 26, 'Bodega', { size: 9, fill: '#6b93c4' }));
+      parts.push(txt(psX + 14, psY + 42, `${fUF(p.storageValueUF)}${p.storageBonoPie ? '  \u00B7  Bono pie incl.' : ''}`, { size: 11, weight: 700, fill: '#1d4ed8' }));
+      psX += 216;
+    }
+    if (p.reserveFundUF > 0) {
+      parts.push(rct(psX, psY + 10, 200, 40, '#fefce8', 8));
+      parts.push(txt(psX + 14, psY + 26, 'Fondo de reserva', { size: 9, fill: '#92400e' }));
+      parts.push(txt(psX + 14, psY + 42, `${fUF(p.reserveFundUF, 1)} al escriturar`, { size: 11, weight: 700, fill: '#b45309' }));
+    }
+  }
+
+  y += FIN_H;
+
+  // ── GUARANTEED RENT BANNER ────────────────────────────────────
+  if (p.guaranteedRentEnabled) {
+    parts.push(`<rect x="36" y="${y + 8}" width="${W - 72}" height="${GUARANTEED_H - 16}" rx="12" fill="url(#gGuar)"/>`);
+    parts.push(txt(64, y + 32, 'Arriendo Garantizado Incluido', { size: 12, weight: 800, fill: '#ffffff' }));
+    parts.push(txt(64, y + 54, `${p.guaranteedRentMonths} meses  \u00B7  ${fCLPFull(p.guaranteedRentCLP)}/mes  \u00B7  Sin riesgo de vacancia`, { size: 11, fill: '#bbf7d0' }));
+    const badgeRX = W - 120;
+    parts.push(rct(badgeRX, y + 14, 84, 54, '#ffffff20', 10));
+    parts.push(txt(badgeRX + 42, y + 44, `${p.guaranteedRentMonths / 12}a`, { size: 20, weight: 900, fill: '#ffffff', anchor: 'middle' }));
+    parts.push(txt(badgeRX + 42, y + 60, 'garantizado', { size: 9, fill: '#bbf7d0', anchor: 'middle' }));
+    y += GUARANTEED_H;
+  }
+
+  // ── SUMMARY BAR ──────────────────────────────────────────────
+  parts.push(`<rect x="36" y="${y + 8}" width="${W - 72}" height="${SUMMARY_H - 16}" rx="12" fill="url(#gSum)"/>`);
+  parts.push(txt(64, y + 30, 'RESUMEN EJECUTIVO', { size: 10, weight: 700, fill: '#93c5fd' }));
+
+  const sumItems: [string, string, string][] = [
+    ['Valor total propiedad', fCLPFull(R.totalValueUF * p.ufValueCLP), '#ffffff'],
+    ['Flujo total invertido', fCLPFull(R.totalNegativeCashFlow), '#fca5a5'],
+    ['Retorno conservador', fCLPFull(R.scenario1.totalReturn), '#93c5fd'],
+    ['Retorno optimista', fCLPFull(R.scenario2.totalReturn), '#86efac'],
+  ];
+  const SUM_COL_W = (W - 72 - 56) / 4;
+  sumItems.forEach(([lbl, val, col], si) => {
+    const sx = 64 + si * SUM_COL_W;
+    parts.push(txt(sx, y + 56, lbl, { size: 9, fill: '#93c5fd' }));
+    parts.push(txt(sx, y + 80, val, { size: 14, weight: 900, fill: col, mono: true }));
+  });
+
+  y += SUMMARY_H;
+
+  // ── FOOTER ───────────────────────────────────────────────────
+  parts.push(rct(0, y, W, FOOTER_H, '#0f2957'));
+  parts.push(rct(36, y + 17, 24, 24, '#ffffff', 6));
+  if (logoDataUrl) {
+    parts.push(`<image x="40" y="${y + 21}" width="16" height="16" href="${logoDataUrl}" preserveAspectRatio="xMidYMid meet"/>`);
+  }
+  parts.push(txt(68, y + 33, 'Proppi', { size: 12, weight: 700, fill: '#ffffff' }));
+  parts.push(txt(100, y + 33, '\u00B7  proppi.cl', { size: 10, fill: '#4a7abf' }));
+  const disclaimer = `Valores estimativos. No garantizan retorno. UF ${p.ufValueCLP.toLocaleString('es-CL')} al ${todayLabel}. Generado por Proppi Simulador.`;
+  parts.push(txt(W - 36, y + 33, disclaimer, { size: 9, fill: '#4a7abf', anchor: 'end' }));
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${TOTAL_H}" viewBox="0 0 ${W} ${TOTAL_H}">
+${parts.join('\n')}
+</svg>`;
 }
 
-// ─── Modal ────────────────────────────────────────────────────
+// ─── Modal component ──────────────────────────────────────────
 export default function PdfExport({ p, R, asesor: defaultAsesor }: {
   p: SimulationParams; R: SimulationResult; asesor: string;
 }) {
@@ -389,7 +395,6 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
   const [clientRut, setClientRut] = useState(p.clientRut || '');
   const [asesor, setAsesor] = useState(defaultAsesor || '');
   const [loading, setLoading] = useState(false);
-  const templateRef = useRef<HTMLDivElement>(null);
 
   const handleOpen = () => {
     setClientName(p.clientName || '');
@@ -398,39 +403,38 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
     setOpen(true);
   };
 
-  const handleDownload = () => {
-    if (!templateRef.current) return;
+  const handleDownload = async () => {
     setLoading(true);
 
-    const el = templateRef.current;
     const filename = `Proppi_${(p.projectName || 'Simulacion').replace(/\s+/g, '_')}_${(clientName || 'Cliente').replace(/\s+/g, '_')}`;
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) { setLoading(false); return; }
+    // Fetch logo and embed as base64
+    let logoDataUrl = '';
+    try {
+      const resp = await fetch('/logo2.png');
+      const blob = await resp.blob();
+      logoDataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      // logo will be skipped if fetch fails
+    }
 
-    printWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>${filename}</title>
-  <base href="${window.location.origin}/">
-  <style>
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; background: #fff; }
-    @page { margin: 0; size: auto; }
-  </style>
-</head>
-<body>${el.outerHTML}</body>
-</html>`);
-    printWindow.document.close();
+    const svgString = generateSVGString(p, R, clientName, clientRut, asesor, logoDataUrl);
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename}.svg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 
-    // Wait for images then print
-    setTimeout(() => {
-      printWindow.print();
-      setTimeout(() => printWindow.close(), 500);
-      setLoading(false);
-      setOpen(false);
-    }, 800);
+    setLoading(false);
+    setOpen(false);
   };
 
   const INPUT: React.CSSProperties = {
@@ -441,15 +445,13 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
 
   return (
     <>
-      {/* Trigger button */}
       <button onClick={handleOpen} style={{
         padding: '6px 14px', borderRadius: 20, border: '1px solid #ffffff40',
         background: '#0f2957', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer',
       }}>
-        📄 Descargar PDF
+        Descargar SVG
       </button>
 
-      {/* Modal */}
       {open && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 1000,
@@ -460,17 +462,17 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
             background: '#fff', borderRadius: 18, width: '100%', maxWidth: 420, padding: 28,
             boxShadow: '0 24px 80px #0f295740',
           }}>
-            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-              <div style={{ width: 52, height: 52, background: '#eff6ff', borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/logo2.png" alt="Proppi" style={{ width: 44, height: 44, objectFit: 'contain' }} /></div>
+              <div style={{ width: 52, height: 52, background: '#eff6ff', borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                <img src="/logo2.png" alt="Proppi" style={{ width: 44, height: 44, objectFit: 'contain' }} />
+              </div>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: '#0f2957' }}>Generar PDF</div>
-                <div style={{ fontSize: 11, color: '#6b93c4' }}>{p.projectName || 'Simulación de inversión'}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#0f2957' }}>Generar SVG</div>
+                <div style={{ fontSize: 11, color: '#6b93c4' }}>{p.projectName || 'Simulacion de inversion'}</div>
               </div>
               <button onClick={() => setOpen(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: 18, color: '#94a3b8', cursor: 'pointer' }}>✕</button>
             </div>
 
-            {/* Fields */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <p style={{ fontSize: 11, color: '#6b93c4', marginBottom: 5 }}>Nombre del cliente</p>
@@ -489,7 +491,6 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
               </div>
             </div>
 
-            {/* Actions */}
             <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
               <button onClick={() => setOpen(false)} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid #bfdbfe', background: '#fff', color: '#6b93c4', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Cancelar
@@ -499,19 +500,12 @@ export default function PdfExport({ p, R, asesor: defaultAsesor }: {
                 background: loading ? '#93c5fd' : 'linear-gradient(135deg,#1d4ed8,#0284c7)',
                 color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading ? 'wait' : 'pointer',
               }}>
-                {loading ? '⏳ Abriendo...' : '📄 Generar PDF'}
+                {loading ? 'Generando...' : 'Descargar SVG'}
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* Hidden PDF template (off-screen) */}
-      <div style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1, display: 'inline-block' }}>
-        <div ref={templateRef} style={{ display: 'inline-block' }}>
-          <PdfTemplate p={p} R={R} clientName={clientName} clientRut={clientRut} asesor={asesor} />
-        </div>
-      </div>
     </>
   );
 }
